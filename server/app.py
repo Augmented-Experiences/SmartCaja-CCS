@@ -2636,6 +2636,8 @@ except Exception as e:
 # ---------------------------------------------------------------------------
 if APP_DIR.exists():
     app.mount("/ui", StaticFiles(directory=str(APP_DIR), html=True), name="ui")
+    # Instalador Tauri: WebView abre http://127.0.0.1:PORT/ (assets relativos en index.html).
+    app.mount("/", StaticFiles(directory=str(APP_DIR), html=True), name="ui_root")
 else:
     logger.warning(f"Directorio de UI no encontrado: {APP_DIR}")
 
@@ -2658,10 +2660,6 @@ async def startup():
     threading.Thread(target=ensure_ollama_running, daemon=True).start()
     logger.info(f"SmartCaja v2.0.0 iniciado en puerto {PORT} ({sys.platform})")
 
-@app.get("/")
-async def root():
-    from fastapi.responses import RedirectResponse
-    return RedirectResponse(url="/ui/index.html")
 
 # ---------------------------------------------------------------------------
 # Endpoints: Exportar / Importar datos globales
