@@ -76,6 +76,13 @@ impl Status {
 struct AppStatus(Mutex<Status>);
 struct BackendPort(u16);
 
+fn persist_status_snapshot(snapshot: &Status) {
+    let path = user_data_dir().join("desktop_status.json");
+    if let Ok(json) = serde_json::to_string(snapshot) {
+        let _ = std::fs::write(path, json);
+    }
+}
+
 fn update_status(app: &tauri::AppHandle, f: impl FnOnce(&mut Status)) {
     let snapshot = {
         let state = app.state::<AppStatus>();
@@ -83,6 +90,7 @@ fn update_status(app: &tauri::AppHandle, f: impl FnOnce(&mut Status)) {
         f(&mut s);
         s.clone()
     };
+    persist_status_snapshot(&snapshot);
     let _ = app.emit("status", snapshot);
 }
 
@@ -187,7 +195,10 @@ fn backend_log(line: &str) {
 fn kill_backend_child(state: &BackendState) {
     if let Some(child) = state.0.lock().unwrap().take() {
         ollama_log("kill_backend_child: terminando sidecar backend");
-        let _ = child.kill();
+        match child.kill() {
+            Ok(()) => ollama_log("kill_backend_child: OK"),
+            Err(e) => ollama_log(&format!("kill_backend_child: {}", e)),
+        }
     }
 }
 
@@ -220,6 +231,58 @@ fn wait_for_port(port: u16, attempts: u32) -> bool {
 
 fn backend_app_url(port: u16) -> String {
     format!("http://127.0.0.1:{}/", port)
+}
+
+fn splash_url(port: u16) -> String {
+    format!("http://127.0.0.1:{}/__splash/", port)
+}
+
+fn wait_for_health(port: u16, attempts: u32) -> bool {
+    let health_url = format!("http://127.0.0.1:{}/api/health", port);
+    for _ in 0..attempts {
+        match ureq::get(&health_url).call() {
+            Ok(r) if r.status() == 200 => {
+                ollama_log("GET /api/health 200 — sidecar arriba");
+                return true;
+            }
+            Ok(r) => ollama_log(&format!("GET /api/health status {}", r.status())),
+            Err(e) => ollama_log(&format!("GET /api/health error: {}", e)),
+        }
+        std::thread::sleep(Duration::from_millis(500));
+    }
+    false
+}
+
+fn navigate_webview_external(app: &tauri::AppHandle, url_str: &str) -> Result<(), String> {
+    let parsed = Url::parse(url_str).map_err(|e| format!("URL invalida: {}", e))?;
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "ventana main no encontrada".to_string())?;
+    window
+        .navigate(parsed)
+        .map_err(|e| format!("navigate fallo: {}", e))?;
+    ollama_log(&format!("WebView navigate OK -> {}", url_str));
+    Ok(())
+}
+
+fn open_splash_on_backend(app: &tauri::AppHandle, port: u16) {
+    let url = splash_url(port);
+    let handle = app.clone();
+    ollama_log(&format!("abriendo splash same-origin: {}", url));
+    match app.run_on_main_thread(move || {
+        if let Some(w) = handle.get_webview_window("main") {
+            let _ = w.show();
+            let _ = w.set_focus();
+        } else {
+            ollama_log("open_splash_on_backend: ventana main no encontrada antes de navigate");
+        }
+        if let Err(e) = navigate_webview_external(&handle, &url) {
+            ollama_log(&format!("open_splash_on_backend navigate: {}", e));
+        }
+    }) {
+        Ok(()) => ollama_log("open_splash_on_backend: run_on_main_thread OK"),
+        Err(e) => ollama_log(&format!("open_splash_on_backend: run_on_main_thread {}", e)),
+    }
 }
 
 struct ProbeResult {
@@ -313,7 +376,6 @@ fn apply_backend_ready(app: &tauri::AppHandle, port: u16) {
             s.message = "Servicios listos.".into();
         }
     });
-    maybe_enter_app(app, port);
 }
 
 fn try_mark_backend_ready(app: &tauri::AppHandle, port: u16) -> bool {
@@ -334,67 +396,27 @@ fn navigate_main_to_backend(app: &tauri::AppHandle, port: u16) -> Result<(), Str
     }
     let probe = probe_backend(port);
     *app.state::<LastProbe>().0.lock().unwrap() = probe.detail.clone();
-    if !probe.ok {
-        return Err(probe.detail);
-    }
-    let url_str = backend_app_url(port);
-    let parsed = Url::parse(&url_str).map_err(|e| format!("URL invalida: {}", e))?;
-    let window = app
-        .get_webview_window("main")
-        .ok_or_else(|| "ventana main no encontrada".to_string())?;
-    window
-        .navigate(parsed)
-        .map_err(|e| format!("navigate fallo: {}", e))?;
-    *app.state::<Navigated>().0.lock().unwrap() = true;
-    ollama_log(&format!("WebView navigate OK -> {}", url_str));
-    Ok(())
-}
-
-fn maybe_enter_app(app: &tauri::AppHandle, port: u16) {
-    let ollama_done = app.state::<AppStatus>().0.lock().unwrap().ollama_done;
-    if !ollama_done {
-        ollama_log("maybe_enter_app: esperando ollama_done");
-        return;
-    }
-    let handle = app.clone();
-    ollama_log("maybe_enter_app: encolando navigate en hilo principal");
-    match app.run_on_main_thread(move || {
-        if let Err(e) = navigate_main_to_backend(&handle, port) {
-            ollama_log(&format!("navigate error: {}", e));
-            update_status(&handle, |s| {
-                s.backend_error = Some(format!(
-                    "{}. Pulse «Entrar ahora» para reintentar.",
-                    e
-                ));
-                s.phase = "warning".into();
-            });
-        }
-    }) {
-        Ok(()) => ollama_log("run_on_main_thread: OK"),
-        Err(e) => ollama_log(&format!("run_on_main_thread: {}", e)),
-    }
-}
-
-fn force_post_ollama_navigate(app: &tauri::AppHandle, port: u16) {
-    let probe = probe_backend(port);
-    *app.state::<LastProbe>().0.lock().unwrap() = probe.detail.clone();
     ollama_log(&format!(
-        "probe final: ok={} {}",
+        "navigate_main_to_backend probe: ok={} {}",
         probe.ok,
         probe.detail
     ));
-    if probe.ok {
-        let _ = try_mark_backend_ready(app, port);
-    } else {
+    if !probe.ok {
         update_status(app, |s| {
             s.phase = "warning".into();
             s.backend_error = Some(format!(
-                "El servidor local no respondio con la UI HTML. {}. Pulse «Entrar ahora» para reintentar.",
+                "El servidor local no respondio: {}. Revise logs/ollama.log y reconstruya backend.exe.",
                 probe.detail
             ));
         });
+        ollama_log("navigate_main_to_backend: omitido (health/UI probe fallo)");
+        return Err(probe.detail);
     }
-    maybe_enter_app(app, port);
+    let _ = try_mark_backend_ready(app, port);
+    let url_str = backend_app_url(port);
+    navigate_webview_external(app, &url_str)?;
+    *app.state::<Navigated>().0.lock().unwrap() = true;
+    Ok(())
 }
 
 fn model_for_ram() -> String {
@@ -467,40 +489,26 @@ fn pull_model_with_progress(app: &tauri::AppHandle, model: &str) -> bool {
 
 fn finish_ollama_bootstrap(app: &tauri::AppHandle, backend_port: u16) {
     ollama_log("== finish_ollama_bootstrap (post extra_models)");
-    if !app.state::<AppStatus>().0.lock().unwrap().can_continue {
-        ollama_log("esperando sidecar (probe /api/health + / + /api/desktop-ui)...");
-        let _ = try_mark_backend_ready(app, backend_port);
-        if !app.state::<AppStatus>().0.lock().unwrap().can_continue {
-            wait_for_backend_ready(app, backend_port, 120);
-            let _ = try_mark_backend_ready(app, backend_port);
-        }
-    }
+    let _ = try_mark_backend_ready(app, backend_port);
 
     update_status(app, |s| {
         s.ollama_done = true;
         s.percent = 100;
+        s.message = "Modelos listos. Abriendo la aplicacion...".into();
         if s.can_continue {
             s.phase = "ready".into();
             if s.backend_url.is_none() {
                 s.backend_url = Some(backend_app_url(backend_port));
             }
+        } else {
+            let detail = app.state::<LastProbe>().0.lock().unwrap().clone();
+            s.backend_error = Some(format!(
+                "UI aun no lista: {}. Use Entrar en el splash.",
+                detail
+            ));
         }
     });
-
-    force_post_ollama_navigate(app, backend_port);
-
-    let app2 = app.clone();
-    std::thread::spawn(move || {
-        for delay in [1u64, 3, 5] {
-            std::thread::sleep(Duration::from_secs(delay));
-            if *app2.state::<Navigated>().0.lock().unwrap() {
-                ollama_log("reintento post-ollama: ya navegado");
-                return;
-            }
-            ollama_log(&format!("reintento post-ollama navegacion (+{}s)", delay));
-            force_post_ollama_navigate(&app2, backend_port);
-        }
-    });
+    ollama_log("ollama_done=true; splash debe hacer location.replace('/') via /api/desktop-status");
 }
 
 fn bootstrap_ollama(app: tauri::AppHandle, backend_port: u16) {
@@ -547,15 +555,6 @@ fn bootstrap_ollama(app: tauri::AppHandle, backend_port: u16) {
     });
 }
 
-fn reset_splash_webview(app: &tauri::AppHandle) {
-    *app.state::<Navigated>().0.lock().unwrap() = false;
-    if let Some(window) = app.get_webview_window("main") {
-        if let Ok(url) = Url::parse("tauri://localhost/index.html") {
-            let _ = window.navigate(url);
-        }
-    }
-}
-
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -570,7 +569,8 @@ fn main() {
         ])
         .setup(|app| {
             let handle = app.handle().clone();
-            reset_splash_webview(&handle);
+            *handle.state::<Navigated>().0.lock().unwrap() = false;
+            persist_status_snapshot(&Status::initial());
 
             if let Some(w) = handle.get_webview_window("main") {
                 let app_for_window = handle.clone();
@@ -594,20 +594,27 @@ fn main() {
             ollama_log(&format!("Puerto backend elegido: {}", port));
 
             let data_dir = user_data_dir().to_string_lossy().to_string();
+            let backend_state = app.state::<BackendState>();
+            if backend_state.0.lock().unwrap().is_some() {
+                ollama_log("WARN: sidecar ya registrado; omitiendo segundo spawn");
+            }
             let sidecar = app.shell().sidecar("backend");
             match sidecar {
                 Ok(cmd) => match cmd
                     .env("PORT", port.to_string())
                     .env("DATA_DIR", data_dir)
                     .env("RUN_BY_TAURI", "1")
+                    .env("PYTHONIOENCODING", "utf-8")
                     .spawn()
                 {
                     Ok((mut rx, child)) => {
-                        app.state::<BackendState>()
-                            .0
-                            .lock()
-                            .unwrap()
-                            .replace(child);
+                        let backend_state = app.state::<BackendState>();
+                        let mut slot = backend_state.0.lock().unwrap();
+                        if slot.is_some() {
+                            ollama_log("WARN: sidecar slot ocupado; matando instancia duplicada");
+                            let _ = slot.take().map(|c| c.kill());
+                        }
+                        slot.replace(child);
                         let sidecar_handle = handle.clone();
                         tauri::async_runtime::spawn(async move {
                             while let Some(event) = rx.recv().await {
@@ -617,8 +624,8 @@ fn main() {
                                     backend_log(&String::from_utf8_lossy(&bytes));
                                 }
                             }
-                            ollama_log("sidecar backend: canal de eventos cerrado");
-                            shutdown_app(&sidecar_handle, "sidecar EOF");
+                            ollama_log("sidecar backend: canal de eventos cerrado (proceso terminó?)");
+                            shutdown_app(&sidecar_handle, "sidecar stdout/stderr EOF");
                         });
                     }
                     Err(e) => {
@@ -639,6 +646,26 @@ fn main() {
                     });
                 }
             }
+
+            let splash_handle = handle.clone();
+            std::thread::spawn(move || {
+                if wait_for_health(port, 120) {
+                    open_splash_on_backend(&splash_handle, port);
+                } else {
+                    ollama_log(
+                        "ERROR: /api/health no respondio; sidecar caido (revise traceback en este log)",
+                    );
+                    update_status(&splash_handle, |s| {
+                        s.phase = "warning".into();
+                        s.message = "El servidor local no inicio.".into();
+                        s.backend_error = Some(
+                            "El sidecar (backend.exe) termino antes de escuchar. \
+                             Reconstruya con build-backend.ps1 y revise logs/ollama.log."
+                                .into(),
+                        );
+                    });
+                }
+            });
 
             bootstrap_ollama(handle.clone(), port);
 

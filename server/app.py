@@ -2632,12 +2632,91 @@ except Exception as e:
     logger.warning(f"No se pudo registrar el router avanzado: {e}")
 
 # ---------------------------------------------------------------------------
-# Montar archivos estáticos y arrancar
+# Splash same-origin (Tauri) + UI estática
 # ---------------------------------------------------------------------------
-if APP_DIR.exists():
+
+def _resolve_splash_dir() -> Path:
+    """Archivos splash (desktop/ui) empaquetados como splash_ui en PyInstaller."""
+    candidates: list[Path] = []
+    if _IS_FROZEN:
+        meipass = Path(getattr(sys, "_MEIPASS", str(BASE_DIR)))
+        candidates.append(meipass / "splash_ui")
+    candidates.extend(
+        [
+            BASE_DIR / "desktop" / "ui",
+            Path(__file__).resolve().parent.parent / "desktop" / "ui",
+        ]
+    )
+    for c in candidates:
+        if (c / "index.html").is_file():
+            return c.resolve()
+    return (BASE_DIR / "desktop" / "ui").resolve()
+
+
+_SPLASH_DIR = _resolve_splash_dir()
+_SPLASH_INDEX = _SPLASH_DIR / "index.html"
+_DESKTOP_STATUS_FILE = DATA_DIR / "desktop_status.json"
+_INDEX_HTML = APP_DIR / "index.html"
+logger.info(
+    "UI splash: dir=%s index=%s app_index=%s frozen=%s",
+    _SPLASH_DIR,
+    _SPLASH_INDEX.is_file(),
+    _INDEX_HTML.is_file(),
+    _IS_FROZEN,
+)
+
+
+@app.get("/api/desktop-status")
+async def desktop_status():
+    """Estado del arranque (Ollama) escrito por Tauri en desktop_status.json."""
+    default = {
+        "phase": "starting",
+        "message": "Iniciando servicios...",
+        "percent": -1,
+        "backendUrl": None,
+        "canContinue": False,
+        "ollamaDone": False,
+        "backendError": None,
+    }
+    if not _DESKTOP_STATUS_FILE.is_file():
+        return default
+    try:
+        raw = _DESKTOP_STATUS_FILE.read_text(encoding="utf-8")
+        data = json.loads(raw)
+        if isinstance(data, dict):
+            return {**default, **data}
+    except Exception as exc:
+        logger.warning("desktop_status.json: %s", exc)
+    return default
+
+
+@app.get("/api/desktop-ui")
+async def desktop_ui_status():
+    """Diagnóstico para el instalador Tauri (UI empaquetada en el sidecar)."""
+    return {
+        "frozen": _IS_FROZEN,
+        "baseDir": str(BASE_DIR),
+        "appDir": str(APP_DIR),
+        "indexExists": _INDEX_HTML.is_file(),
+        "splashExists": _SPLASH_INDEX.is_file(),
+        "port": PORT,
+    }
+
+
+if _SPLASH_INDEX.is_file():
+    app.mount(
+        "/__splash",
+        StaticFiles(directory=str(_SPLASH_DIR), html=True),
+        name="splash",
+    )
+else:
+    logger.warning("splash index.html no encontrado en %s", _SPLASH_DIR)
+
+if APP_DIR.exists() and _INDEX_HTML.is_file():
     app.mount("/ui", StaticFiles(directory=str(APP_DIR), html=True), name="ui")
-    # Instalador Tauri: WebView abre http://127.0.0.1:PORT/ (assets relativos en index.html).
     app.mount("/", StaticFiles(directory=str(APP_DIR), html=True), name="ui_root")
+elif APP_DIR.exists():
+    logger.warning("index.html no encontrado en %s", APP_DIR)
 else:
     logger.warning(f"Directorio de UI no encontrado: {APP_DIR}")
 

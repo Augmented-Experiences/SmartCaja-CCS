@@ -38,7 +38,7 @@ function cargoPackageName() {
   return last.replace(/[^a-z0-9_]/gi, "").toLowerCase() || "smartapp";
 }
 
-/** Marca en splash: SmartGastos → Smart + Gastos (acento). */
+/** Marca en splash: SmartCaja / SmartGastos → Smart + acento en el sufijo. */
 function brandHtml(name) {
   if (/^Smart[A-ZÁÉÍÓÚÑ]/.test(name) && name.length > 5) {
     const tail = name.slice(5);
