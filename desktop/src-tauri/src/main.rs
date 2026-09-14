@@ -350,12 +350,12 @@ fn maybe_enter_app(app: &tauri::AppHandle, port: u16) {
         ollama_log("maybe_enter_app: esperando ollama_done");
         return;
     }
-    let app = app.clone();
+    let handle = app.clone();
     ollama_log("maybe_enter_app: encolando navigate en hilo principal");
     match app.run_on_main_thread(move || {
-        if let Err(e) = navigate_main_to_backend(&app, port) {
+        if let Err(e) = navigate_main_to_backend(&handle, port) {
             ollama_log(&format!("navigate error: {}", e));
-            update_status(&app, |s| {
+            update_status(&handle, |s| {
                 s.backend_error = Some(format!(
                     "{}. Pulse «Entrar ahora» para reintentar.",
                     e
