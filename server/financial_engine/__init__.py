@@ -1,5 +1,5 @@
 """
-Motor Financiero Modular — CCS Cashflow Assistant
+Motor Financiero Modular — SmartCaja
 Proporciona simulación determinista, probabilística (Monte Carlo),
 cálculo de métricas avanzadas y análisis de sensibilidad.
 """

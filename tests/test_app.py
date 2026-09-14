@@ -1,5 +1,5 @@
 """
-Tests para CCS Cashflow Assistant v0.2.0
+Tests para SmartCaja v0.2.0
 
 Incluye pruebas unitarias y de integración para:
   - Utilidades de persistencia (save_json, load_json)

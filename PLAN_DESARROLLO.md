@@ -1,4 +1,4 @@
-# Plan de Desarrollo: CCS Cashflow Assistant
+# Plan de Desarrollo: SmartCaja
 
 ## 1. Visión del Producto
 Un plugin para Pinokio que permite a las PYMEs crear, analizar y proyectar flujos de caja de manera inteligente usando un agente local basado en Ollama y un modelo de Meta Llama. Funciona 100% offline y no requiere conocimientos financieros previos.
@@ -28,7 +28,7 @@ Un plugin para Pinokio que permite a las PYMEs crear, analizar y proyectar flujo
 - **Simulador:** Calcula el impacto de los escenarios.
 
 ## 6. Interfaz de Usuario (UI)
-- Estilo visual basado en CCS Brand Assistant (colores corporativos, tipografía DM Sans).
+- Estilo visual basado en la identidad de marca de la CCCE (colores corporativos, tipografía DM Sans).
 - Layout con sidebar de navegación y área principal.
 - Chat interactivo para la entrevista y simulaciones.
 - Dashboard con gráficos (Chart.js) para visualizar el flujo de caja.

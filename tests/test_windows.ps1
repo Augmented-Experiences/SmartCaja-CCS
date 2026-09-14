@@ -1,5 +1,5 @@
 # ============================================================
-# CCS Cashflow Assistant - Test de Validacion Windows
+# SmartCaja - Test de Validacion Windows
 # ============================================================
 # Ejecutar con: powershell -ExecutionPolicy Bypass -File tests/test_windows.ps1
 # ============================================================
@@ -35,7 +35,7 @@ if (-not (Test-Path "$ROOT/pinokio.js")) {
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host " CCS Cashflow Assistant - Validacion Windows" -ForegroundColor Cyan
+Write-Host " SmartCaja - Validacion Windows" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 

@@ -1,0 +1,18 @@
+{
+  "$comment": "Configuración por-herramienta del SmartSuite (CCCE). Cambia estos valores y ejecuta 'node scripts/configure.mjs' (o 'npm run build', que lo ejecuta antes de compilar).",
+  "productName": "SmartCaja",
+  "identifier": "co.org.ccce.smartcaja",
+  "version": "2.0.0",
+  "dataDirName": "SmartCaja",
+  "accent": "#F4C10E",
+  "window": { "title": "SmartCaja", "width": 1280, "height": 840, "minWidth": 960, "minHeight": 640 },
+  "shortDescription": "Flujo de caja con IA local (CCCE)",
+  "longDescription": "SmartCaja — gestión de flujo de caja inteligente con IA local para PYMEs, de la Cámara Colombiana de Comercio Electrónico (CCCE).",
+  "ollama": {
+    "tiers": [
+      { "maxRamGb": 6, "model": "llama3.2:1b" },
+      { "maxRamGb": 12, "model": "llama3.2:3b" },
+      { "maxRamGb": 0, "model": "llama3.1:8b" }
+    ]
+  }
+}

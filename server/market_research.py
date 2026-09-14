@@ -144,7 +144,7 @@ def _search_web_for_market(sector: str, country: str, products: List[str] = None
                 "https://api.duckduckgo.com/",
                 params={"q": query, "format": "json", "no_html": 1, "skip_disambig": 1},
                 timeout=10,
-                headers={"User-Agent": "CCS-Cashflow-Assistant/1.0"}
+                headers={"User-Agent": "SmartCaja/1.0"}
             )
             if resp.status_code == 200:
                 data = resp.json()

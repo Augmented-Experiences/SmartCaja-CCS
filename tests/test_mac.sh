@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# CCS Cashflow Assistant - Test de Validacion macOS/Linux
+# SmartCaja - Test de Validacion macOS/Linux
 # ============================================================
 # Ejecutar con: bash tests/test_mac.sh
 # ============================================================
@@ -42,7 +42,7 @@ fi
 
 echo ""
 echo -e "${CYAN}============================================================${NC}"
-echo -e "${CYAN} CCS Cashflow Assistant - Validacion macOS/Linux${NC}"
+echo -e "${CYAN} SmartCaja - Validacion macOS/Linux${NC}"
 echo -e "${CYAN}============================================================${NC}"
 echo ""
 

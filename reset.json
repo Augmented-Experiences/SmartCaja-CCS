@@ -3,7 +3,7 @@
     {
       "method": "log",
       "params": {
-        "html": "<p>&#x1F5D1;&#xFE0F; Desinstalando CCS Cashflow Assistant...</p>"
+        "html": "<p>&#x1F5D1;&#xFE0F; Desinstalando SmartCaja...</p>"
       }
     },
     {
@@ -21,7 +21,7 @@
     {
       "method": "notify",
       "params": {
-        "html": "CCS Cashflow Assistant desinstalado. Los datos del usuario se conservan en la carpeta 'data'."
+        "html": "SmartCaja desinstalado. Los datos del usuario se conservan en la carpeta 'data'."
       }
     }
   ]

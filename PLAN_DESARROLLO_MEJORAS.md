@@ -1,6 +1,6 @@
 # Plan de Desarrollo de Mejoras de Seguridad y Robustez (Basado en Auditoría)
 
-Este documento detalla el plan de acción para abordar las falencias reportadas en el análisis de código y seguridad del CCS Cashflow Assistant v2.1. Las mejoras han sido priorizadas para un entorno on-premise de Pinokio, descartando o degradando riesgos que no aplican a una arquitectura local de único usuario (ej. exigir TLS intra-host o autenticación estricta de sesión).
+Este documento detalla el plan de acción para abordar las falencias reportadas en el análisis de código y seguridad de SmartCaja v2.1. Las mejoras han sido priorizadas para un entorno on-premise de Pinokio, descartando o degradando riesgos que no aplican a una arquitectura local de único usuario (ej. exigir TLS intra-host o autenticación estricta de sesión).
 
 ## Criterios de Priorización
 1. **Estabilidad y Concurrencia:** Errores que rompen la aplicación offline o corrompen datos.

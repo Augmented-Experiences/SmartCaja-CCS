@@ -1,0 +1,16 @@
+{
+  "name": "smartcaja-desktop",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Instalador/app de escritorio nativo de SmartCaja (Tauri) — CCCE",
+  "scripts": {
+    "tauri": "tauri",
+    "configure": "node scripts/configure.mjs",
+    "icon": "tauri icon ../icon.png",
+    "build": "node scripts/configure.mjs && tauri build",
+    "dev": "node scripts/configure.mjs && tauri dev"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.1.0"
+  }
+}

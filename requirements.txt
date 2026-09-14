@@ -1,5 +1,5 @@
 # ============================================================
-# CCS Cashflow Assistant v2.1 — Dependencias
+# SmartCaja v2.1 — Dependencias
 # Motor Financiero Modular con Simulación Monte Carlo
 # Pinned para reproducibilidad en entornos on-premise
 # ============================================================

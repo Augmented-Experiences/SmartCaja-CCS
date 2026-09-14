@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # ============================================================
-# diagnose.sh — Diagnostico del entorno para CCS Cashflow
-# Assistant. Ejecutar si la instalacion o el inicio fallan.
+# diagnose.sh — Diagnostico del entorno para SmartCaja.
+# Ejecutar si la instalacion o el inicio fallan.
 # ============================================================
 
-echo "=== Diagnostico CCS Cashflow Assistant ==="
+echo "=== Diagnostico SmartCaja ==="
 echo ""
 
 # -- Sistema --

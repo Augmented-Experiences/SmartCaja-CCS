@@ -1,6 +1,6 @@
-# CCS Cashflow Assistant v2.0
+# SmartCaja v2.0
 
-Herramienta de flujo de caja inteligente con IA local para PYMEs, desarrollada como plugin para [Pinokio](https://pinokio.computer). Utiliza agentes conversacionales basados en **Ollama** y modelos **Meta Llama** para crear, analizar y proyectar flujos de caja de manera completamente offline.
+Herramienta de flujo de caja inteligente con IA local para PYMEs, desarrollada como plugin para [Pinokio](https://pinokio.computer). Utiliza agentes conversacionales basados en **Ollama** y modelos **Meta Llama** para crear, analizar y proyectar flujos de caja de manera completamente offline. Un producto de la **Cámara Colombiana de Comercio Electrónico (CCCE)**.
 
 ## Novedades v2.0
 
@@ -56,7 +56,7 @@ El sistema genera un flujo de caja mes a mes con:
 ## Arquitectura
 
 ```
-ccs-cashflow-assistant/
+smartcaja/
 ├── server/
 │   ├── app.py                    # Backend principal FastAPI
 │   ├── advanced_endpoints.py     # Router V2 (motor financiero)
@@ -119,8 +119,8 @@ ccs-cashflow-assistant/
 
 ### Manual
 ```bash
-git clone https://github.com/vtomasv/ccs-cashflow-assistant.git
-cd ccs-cashflow-assistant
+git clone https://github.com/vtomasv/smartcaja.git
+cd smartcaja
 python -m venv venv
 source venv/bin/activate  # Linux/Mac
 pip install -r requirements.txt
@@ -180,7 +180,7 @@ python server/app.py --port 7860
 
 ### Ejecutar tests
 ```bash
-cd ccs-cashflow-assistant
+cd smartcaja
 pip install pytest numpy
 python -m pytest tests/ -v
 python tests/test_engine.py
@@ -188,7 +188,7 @@ python tests/test_engine.py
 
 ### Ejecutar servidor en desarrollo
 ```bash
-cd ccs-cashflow-assistant
+cd smartcaja
 pip install -r requirements.txt
 python server/app.py --port 7860
 ```
@@ -199,4 +199,4 @@ MIT License
 
 ## Créditos
 
-Desarrollado para la **Cámara de Comercio de Santiago (CCS)** como parte del programa de digitalización de PYMEs con inteligencia artificial local.
+Desarrollado para la **Cámara Colombiana de Comercio Electrónico (CCCE)** como parte del programa de digitalización de PYMEs con inteligencia artificial local.

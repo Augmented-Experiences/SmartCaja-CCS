@@ -1,5 +1,5 @@
 """
-CCS Cashflow Assistant v2.1 — Suite de Pruebas Automatizadas
+SmartCaja v2.1 — Suite de Pruebas Automatizadas
 Verifica: motor financiero, InterviewManager, market_research, endpoints, frontend.
 """
 import sys

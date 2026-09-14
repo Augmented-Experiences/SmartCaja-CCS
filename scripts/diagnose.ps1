@@ -1,9 +1,9 @@
 # ============================================================
-# diagnose.ps1 — Diagnostico del entorno para CCS Cashflow
-# Assistant. Ejecutar si la instalacion o el inicio fallan.
+# diagnose.ps1 — Diagnostico del entorno para SmartCaja.
+# Ejecutar si la instalacion o el inicio fallan.
 # ============================================================
 
-Write-Host "=== Diagnostico CCS Cashflow Assistant ===" -ForegroundColor Cyan
+Write-Host "=== Diagnostico SmartCaja ===" -ForegroundColor Cyan
 Write-Host ""
 
 # -- Sistema --

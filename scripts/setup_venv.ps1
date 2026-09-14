@@ -1,6 +1,6 @@
 # ============================================================
 # setup_venv.ps1 — Crea el entorno virtual Python e instala
-# las dependencias del proyecto CCS Cashflow Assistant.
+# las dependencias del proyecto SmartCaja.
 # Compatible con entornos Pinokio (conda base).
 # ============================================================
 
