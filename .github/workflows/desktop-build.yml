@@ -1,6 +1,6 @@
-name: Build SmartGastos Desktop Installers
+name: Build SmartCaja Desktop Installers
 
-# Construye los instaladores nativos de SmartGastos (Tauri) para
+# Construye los instaladores nativos de SmartCaja (Tauri) para
 # Windows (.msi/.exe), macOS (.dmg) y Linux (.AppImage/.deb).
 on:
   workflow_dispatch:
@@ -70,7 +70,7 @@ jobs:
       - name: Upload installers
         uses: actions/upload-artifact@v4
         with:
-          name: smartgastos-${{ matrix.target }}
+          name: smartcaja-${{ matrix.target }}
           path: |
             desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage
             desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.deb

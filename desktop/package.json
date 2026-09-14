@@ -1,8 +1,8 @@
 {
-  "name": "smartgastos-desktop",
+  "name": "smartcaja-desktop",
   "version": "2.0.0",
   "private": true,
-  "description": "Instalador/app de escritorio nativo de SmartGastos (Tauri) — CCCE",
+  "description": "Instalador/app de escritorio nativo de SmartCaja (Tauri) — CCCE",
   "scripts": {
     "tauri": "tauri",
     "configure": "node scripts/configure.mjs",

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "SmartGastos",
+  "productName": "SmartCaja",
   "version": "2.0.0",
-  "identifier": "co.org.ccce.smartgastos",
+  "identifier": "co.org.ccce.smartcaja",
   "build": {
     "frontendDist": "../ui"
   },
@@ -11,7 +11,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "SmartGastos",
+        "title": "SmartCaja",
         "width": 1280,
         "height": 840,
         "minWidth": 960,
@@ -45,8 +45,8 @@
       "binaries/backend"
     ],
     "category": "Finance",
-    "shortDescription": "Gestión de gastos/contabilidad con IA local (CCCE)",
-    "longDescription": "SmartGastos — gestión de gastos y contabilidad con IA local para PYMEs, de la Cámara Colombiana de Comercio Electrónico (CCCE)."
+    "shortDescription": "Flujo de caja con IA local (CCCE)",
+    "longDescription": "SmartCaja — gestión de flujo de caja inteligente con IA local para PYMEs, de la Cámara Colombiana de Comercio Electrónico (CCCE)."
   },
   "plugins": {}
 }

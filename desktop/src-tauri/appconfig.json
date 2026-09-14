@@ -1,6 +1,6 @@
 {
-  "productName": "SmartGastos",
-  "dataDirName": "SmartGastos",
+  "productName": "SmartCaja",
+  "dataDirName": "SmartCaja",
   "ollamaTiers": [
     {
       "maxRamGb": 6,
@@ -15,7 +15,5 @@
       "model": "llama3.1:8b"
     }
   ],
-  "extraModels": [
-    "moondream"
-  ]
+  "extraModels": []
 }
