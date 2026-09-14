@@ -11,3 +11,6 @@ src-tauri/binaries/
 
 # Node
 node_modules/
+
+# Logo de splash copiado por configure.mjs
+ui/splash-logo.png
