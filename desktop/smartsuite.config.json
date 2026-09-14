@@ -8,7 +8,8 @@
   "window": { "title": "SmartCaja", "width": 1280, "height": 840, "minWidth": 960, "minHeight": 640 },
   "shortDescription": "Flujo de caja con IA local (CCCE)",
   "longDescription": "SmartCaja — gestión de flujo de caja inteligente con IA local para PYMEs, de la Cámara Colombiana de Comercio Electrónico (CCCE).",
-  "splashSubtitle": "Preparando tu asistente de flujo de caja con IA local…",
+  "splashSubtitle": "Preparando tu asistente de flujo de caja con IA local...",
+  "splashLogo": "../icon.png",
   "ollama": {
     "tiers": [
       { "maxRamGb": 6, "model": "llama3.2:1b" },
