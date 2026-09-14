@@ -1,0 +1,7 @@
+{
+  "name": "SmartSuite (CCCE)",
+  "repositoryDependencies": [
+    "github.com/Augmented-Experiences/ccs-brand-assistant",
+    "github.com/Augmented-Experiences/pyme-ledger-ai.pinokio"
+  ]
+}
