@@ -174,7 +174,16 @@ const capabilities = {
   identifier: "default",
   description: `Permisos base para la ventana principal de ${productName}.`,
   windows: ["main"],
-  permissions: ["core:default", "core:webview:allow-set-webview-url"],
+  permissions: [
+    "core:default",
+    "core:webview:default",
+    "shell:allow-kill",
+    "shell:allow-stdin-write",
+    {
+      identifier: "shell:allow-spawn",
+      allow: [{ name: "backend", sidecar: true, args: true }],
+    },
+  ],
 };
 writeFileSync(
   resolve(DESKTOP, "src-tauri/capabilities/default.json"),

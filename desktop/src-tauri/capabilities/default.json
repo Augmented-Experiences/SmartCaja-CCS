@@ -7,6 +7,18 @@
   ],
   "permissions": [
     "core:default",
-    "core:webview:allow-set-webview-url"
+    "core:webview:default",
+    "shell:allow-kill",
+    "shell:allow-stdin-write",
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "backend",
+          "sidecar": true,
+          "args": true
+        }
+      ]
+    }
   ]
 }
