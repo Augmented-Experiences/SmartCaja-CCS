@@ -1,13 +1,14 @@
 {
-  "name": "smartcaja-desktop",
+  "name": "smartgastos-desktop",
   "version": "2.0.0",
   "private": true,
-  "description": "Instalador/app de escritorio nativo de SmartCaja (Tauri) — CCCE",
+  "description": "Instalador/app de escritorio nativo de SmartGastos (Tauri) — CCCE",
   "scripts": {
     "tauri": "tauri",
     "configure": "node scripts/configure.mjs",
     "icon": "tauri icon ../icon.png",
-    "build": "node scripts/configure.mjs && tauri build",
+    "build": "node scripts/configure.mjs && tauri build --bundles msi,nsis,appimage,deb,rpm,dmg",
+    "build:windows": "node scripts/configure.mjs && tauri build --bundles msi,nsis",
     "dev": "node scripts/configure.mjs && tauri dev"
   },
   "devDependencies": {
