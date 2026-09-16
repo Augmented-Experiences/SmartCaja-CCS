@@ -452,10 +452,9 @@ fn extract_archive(archive: &Path, dest: &Path) -> Result<(), String> {
     };
 
     if name.ends_with(".zip") {
-        let tar = hidden_command("tar")
-            .args(["-xf", &archive_s, "-C", &dest_s])
-            .status();
-        if tar.map(|s| s.success()).unwrap_or(false) {
+        let mut tar = hidden_command("tar");
+        tar.args(["-xf", &archive_s, "-C", &dest_s]);
+        if tar.status().map(|s| s.success()).unwrap_or(false) {
             return Ok(());
         }
         #[cfg(windows)]
@@ -465,14 +464,16 @@ fn extract_archive(archive: &Path, dest: &Path) -> Result<(), String> {
                 archive_s.replace('\'', "''"),
                 dest_s.replace('\'', "''")
             );
-            return run(hidden_command("powershell").args([
+            let mut cmd = hidden_command("powershell");
+            cmd.args([
                 "-NoProfile",
                 "-NonInteractive",
                 "-ExecutionPolicy",
                 "Bypass",
                 "-Command",
                 &script,
-            ]));
+            ]);
+            return run(cmd);
         }
         #[cfg(not(windows))]
         {
@@ -481,7 +482,9 @@ fn extract_archive(archive: &Path, dest: &Path) -> Result<(), String> {
     }
 
     if name.ends_with(".tar.zst") || name.ends_with(".tzst") {
-        if run(hidden_command("tar").args(["--zstd", "-xf", &archive_s, "-C", &dest_s])).is_ok() {
+        let mut cmd = hidden_command("tar");
+        cmd.args(["--zstd", "-xf", &archive_s, "-C", &dest_s]);
+        if run(cmd).is_ok() {
             return Ok(());
         }
         let piped = format!(
@@ -489,15 +492,21 @@ fn extract_archive(archive: &Path, dest: &Path) -> Result<(), String> {
             archive_s.replace('\'', "'\\''"),
             dest_s.replace('\'', "'\\''")
         );
-        return run(hidden_command("sh").args(["-c", &piped]));
+        let mut cmd = hidden_command("sh");
+        cmd.args(["-c", &piped]);
+        return run(cmd);
     }
 
     if name.ends_with(".tgz") || name.ends_with(".tar.gz") {
-        return run(hidden_command("tar").args(["-xzf", &archive_s, "-C", &dest_s]));
+        let mut cmd = hidden_command("tar");
+        cmd.args(["-xzf", &archive_s, "-C", &dest_s]);
+        return run(cmd);
     }
 
     if name.ends_with(".tar") {
-        return run(hidden_command("tar").args(["-xf", &archive_s, "-C", &dest_s]));
+        let mut cmd = hidden_command("tar");
+        cmd.args(["-xf", &archive_s, "-C", &dest_s]);
+        return run(cmd);
     }
 
     Err(format!("formato de archivo no soportado: {}", name))
@@ -683,7 +692,8 @@ fn backend_log(line: &str) {
 
 fn kill_backend_child(app: &tauri::AppHandle) {
     let backend_state = app.state::<BackendState>();
-    if let Some(child) = backend_state.0.lock().unwrap().take() {
+    let child = backend_state.0.lock().unwrap().take();
+    if let Some(child) = child {
         ollama_log("kill_backend_child: terminando sidecar backend");
         match child.kill() {
             Ok(()) => ollama_log("kill_backend_child: OK"),
@@ -694,7 +704,8 @@ fn kill_backend_child(app: &tauri::AppHandle) {
 
 fn kill_ollama_child(app: &tauri::AppHandle) {
     let ollama_state = app.state::<OllamaState>();
-    if let Some(mut ollama) = ollama_state.0.lock().unwrap().take() {
+    let ollama = ollama_state.0.lock().unwrap().take();
+    if let Some(mut ollama) = ollama {
         ollama_log(&format!(
             "kill_ollama_child: terminando Ollama iniciado por SmartCaja (pid {})",
             ollama.pid
