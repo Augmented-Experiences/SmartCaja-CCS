@@ -154,7 +154,9 @@ tauri-plugin-shell = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sysinfo = "0.33"
-ureq = { version = "2", default-features = false }
+ureq = { version = "2", default-features = false, features = ["tls"] }
+# rustc 1.83: zeroize 1.9+ requires 1.85 (pulled by rustls via ureq tls).
+zeroize = "=1.8.1"
 
 [[bin]]
 name = "${pkg}"

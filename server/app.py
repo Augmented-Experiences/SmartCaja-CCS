@@ -2736,7 +2736,10 @@ async def startup():
             dst = prompts_dst / f.name
             if not dst.exists():
                 shutil.copy2(str(f), str(dst))
-    threading.Thread(target=ensure_ollama_running, daemon=True).start()
+    if os.environ.get("RUN_BY_TAURI") == "1":
+        logger.info("RUN_BY_TAURI=1: Ollama lo gestiona el launcher (portable o sistema).")
+    else:
+        threading.Thread(target=ensure_ollama_running, daemon=True).start()
     logger.info(f"SmartCaja v2.0.0 iniciado en puerto {PORT} ({sys.platform})")
 
 

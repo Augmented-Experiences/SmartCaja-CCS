@@ -4,9 +4,9 @@
     windows_subsystem = "windows"
 )]
 
-use std::io::{BufRead, Write};
-use std::net::{TcpListener, TcpStream};
-use std::path::PathBuf;
+use std::io::{BufRead, Read, Write};
+use std::net::TcpListener;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
@@ -21,6 +21,10 @@ use tauri_plugin_shell::ShellExt;
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+const OLLAMA_PORT: u16 = 11434;
+const OLLAMA_HOST: &str = "127.0.0.1:11434";
+const OLLAMA_API: &str = "http://127.0.0.1:11434";
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -132,12 +136,487 @@ fn retry_backend(app: tauri::AppHandle, port: tauri::State<BackendPort>) -> Resu
     }
 }
 
-fn ollama_command() -> Command {
-    #[allow(unused_mut)]
-    let mut cmd = Command::new("ollama");
+fn hidden_command(program: impl AsRef<std::ffi::OsStr>) -> Command {
+    let mut cmd = Command::new(program);
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
     cmd
+}
+
+fn ollama_command() -> Command {
+    hidden_command("ollama")
+}
+
+fn ollama_command_at(bin: &Path) -> Command {
+    hidden_command(bin)
+}
+
+fn ollama_install_dir() -> PathBuf {
+    user_data_dir().join("ollama")
+}
+
+fn ollama_runtime_dir() -> PathBuf {
+    ollama_install_dir().join("runtime")
+}
+
+fn ollama_models_dir() -> PathBuf {
+    ollama_install_dir().join("models")
+}
+
+fn ollama_download_dir() -> PathBuf {
+    ollama_install_dir().join("download")
+}
+
+fn ollama_bin_name() -> &'static str {
+    #[cfg(windows)]
+    {
+        "ollama.exe"
+    }
+    #[cfg(not(windows))]
+    {
+        "ollama"
+    }
+}
+
+fn is_ollama_binary(path: &Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+    path.file_name()
+        .and_then(|n| n.to_str())
+        .map(|n| n.eq_ignore_ascii_case(ollama_bin_name()))
+        .unwrap_or(false)
+}
+
+fn find_portable_ollama(root: &Path) -> Option<PathBuf> {
+    if !root.exists() {
+        return None;
+    }
+    let preferred = [
+        root.join(ollama_bin_name()),
+        root.join("bin").join(ollama_bin_name()),
+        root.join("Ollama").join(ollama_bin_name()),
+    ];
+    for p in preferred {
+        if is_ollama_binary(&p) {
+            return Some(p);
+        }
+    }
+    fn walk(dir: &Path, depth: u8) -> Option<PathBuf> {
+        if depth == 0 {
+            return None;
+        }
+        let entries = std::fs::read_dir(dir).ok()?;
+        let mut dirs = Vec::new();
+        for ent in entries.flatten() {
+            let p = ent.path();
+            if is_ollama_binary(&p) {
+                return Some(p);
+            }
+            if p.is_dir() {
+                dirs.push(p);
+            }
+        }
+        for d in dirs {
+            if let Some(found) = walk(&d, depth - 1) {
+                return Some(found);
+            }
+        }
+        None
+    }
+    walk(root, 5)
+}
+
+fn ensure_unix_executable(path: &Path) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Ok(meta) = std::fs::metadata(path) {
+            let mut perms = meta.permissions();
+            perms.set_mode(perms.mode() | 0o755);
+            let _ = std::fs::set_permissions(path, perms);
+        }
+    }
+    let _ = path;
+}
+
+fn binary_runs(bin: &Path) -> bool {
+    ollama_command_at(bin)
+        .arg("--version")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+fn system_ollama_available() -> bool {
+    ollama_command()
+        .arg("--version")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+fn ollama_http_agent() -> ureq::Agent {
+    ureq::AgentBuilder::new()
+        .timeout_connect(Duration::from_secs(30))
+        .timeout_read(Duration::from_secs(6 * 3600))
+        .timeout_write(Duration::from_secs(120))
+        .user_agent("SmartCaja-CCS portable-ollama")
+        .build()
+}
+
+fn ollama_http_healthy() -> bool {
+    match ureq::get(&format!("{}/api/tags", OLLAMA_API))
+        .timeout(Duration::from_secs(3))
+        .call()
+    {
+        Ok(r) => r.status() == 200,
+        Err(_) => false,
+    }
+}
+
+fn official_ollama_archives() -> Vec<(&'static str, &'static str)> {
+    // Official portable archives (zip / tgz). Current Linux latest is tar.zst;
+    // tgz is tried first and skipped on 404. Never run the Windows system installer.
+    let mut urls = Vec::new();
+    if cfg!(all(windows, target_arch = "x86_64")) {
+        urls.push((
+            "https://github.com/ollama/ollama/releases/latest/download/ollama-windows-amd64.zip",
+            "ollama-windows-amd64.zip",
+        ));
+    } else if cfg!(all(windows, target_arch = "aarch64")) {
+        urls.push((
+            "https://github.com/ollama/ollama/releases/latest/download/ollama-windows-arm64.zip",
+            "ollama-windows-arm64.zip",
+        ));
+    } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        urls.push((
+            "https://github.com/ollama/ollama/releases/latest/download/ollama-linux-amd64.tgz",
+            "ollama-linux-amd64.tgz",
+        ));
+        urls.push((
+            "https://github.com/ollama/ollama/releases/latest/download/ollama-linux-amd64.tar.zst",
+            "ollama-linux-amd64.tar.zst",
+        ));
+    } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
+        urls.push((
+            "https://github.com/ollama/ollama/releases/latest/download/ollama-linux-arm64.tgz",
+            "ollama-linux-arm64.tgz",
+        ));
+        urls.push((
+            "https://github.com/ollama/ollama/releases/latest/download/ollama-linux-arm64.tar.zst",
+            "ollama-linux-arm64.tar.zst",
+        ));
+    } else if cfg!(target_os = "macos") {
+        urls.push((
+            "https://github.com/ollama/ollama/releases/latest/download/ollama-darwin.tgz",
+            "ollama-darwin.tgz",
+        ));
+    }
+    urls
+}
+
+fn prepend_dir_to_path(dir: &Path) {
+    let extra = dir.to_string_lossy().into_owned();
+    let merged = match std::env::var_os("PATH") {
+        Some(existing) => {
+            let mut v = std::ffi::OsString::from(extra);
+            #[cfg(windows)]
+            v.push(";");
+            #[cfg(not(windows))]
+            v.push(":");
+            v.push(existing);
+            v
+        }
+        None => extra.into(),
+    };
+    std::env::set_var("PATH", merged);
+}
+
+fn apply_portable_env(bin: &Path) {
+    if let Some(dir) = bin.parent() {
+        prepend_dir_to_path(dir);
+        if dir.file_name().and_then(|n| n.to_str()) == Some("bin") {
+            if let Some(root) = dir.parent() {
+                prepend_dir_to_path(root);
+            }
+        }
+    }
+    let models = ollama_models_dir();
+    let _ = std::fs::create_dir_all(&models);
+    std::env::set_var("OLLAMA_MODELS", models);
+    std::env::set_var("OLLAMA_HOST", OLLAMA_HOST);
+}
+
+fn configure_serve_command(cmd: &mut Command, bin: Option<&Path>) {
+    let models = ollama_models_dir();
+    let _ = std::fs::create_dir_all(&models);
+    if let Some(path) = bin {
+        apply_portable_env(path);
+    }
+    cmd.arg("serve")
+        .env("OLLAMA_HOST", OLLAMA_HOST)
+        .env("OLLAMA_MODELS", models)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
+}
+
+fn record_owned_ollama(app: &tauri::AppHandle, child: Child) {
+    let pid = child.id();
+    let ollama_state = app.state::<OllamaState>();
+    *ollama_state.0.lock().unwrap() = Some(OllamaChild { pid, child });
+    ollama_log(&format!(
+        "Ollama iniciado por SmartCaja (pid {}); se detendra al cerrar la app",
+        pid
+    ));
+}
+
+fn spawn_owned_ollama(app: &tauri::AppHandle, bin: Option<&Path>) -> bool {
+    let mut cmd = match bin {
+        Some(path) => ollama_command_at(path),
+        None => ollama_command(),
+    };
+    configure_serve_command(&mut cmd, bin);
+    match cmd.spawn() {
+        Ok(child) => {
+            record_owned_ollama(app, child);
+            true
+        }
+        Err(e) => {
+            ollama_log(&format!("No se pudo iniciar ollama serve: {}", e));
+            false
+        }
+    }
+}
+
+fn wait_for_healthy_ollama(attempts: u32) -> bool {
+    for _ in 0..attempts {
+        if ollama_http_healthy() {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(500));
+    }
+    false
+}
+
+fn start_and_wait_ollama(app: &tauri::AppHandle, bin: Option<&Path>, message: &str) -> bool {
+    update_status(app, |s| {
+        s.phase = "ollama".into();
+        s.message = message.into();
+        s.percent = -1;
+    });
+    if !spawn_owned_ollama(app, bin) {
+        return false;
+    }
+    let ok = wait_for_healthy_ollama(40);
+    if ok {
+        ollama_log(&format!(
+            "Ollama HTTP API lista en 127.0.0.1:{}",
+            OLLAMA_PORT
+        ));
+    } else {
+        ollama_log("Ollama arranco pero /api/tags no respondio a tiempo");
+    }
+    ok
+}
+
+fn extract_archive(archive: &Path, dest: &Path) -> Result<(), String> {
+    let _ = std::fs::create_dir_all(dest);
+    let name = archive
+        .file_name()
+        .map(|s| s.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    let archive_s = archive.to_string_lossy().into_owned();
+    let dest_s = dest.to_string_lossy().into_owned();
+
+    let run = |mut cmd: Command| -> Result<(), String> {
+        let status = cmd
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .status()
+            .map_err(|e| format!("no se pudo extraer: {}", e))?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(format!("extractor salio con {}", status))
+        }
+    };
+
+    if name.ends_with(".zip") {
+        let tar = hidden_command("tar")
+            .args(["-xf", &archive_s, "-C", &dest_s])
+            .status();
+        if tar.map(|s| s.success()).unwrap_or(false) {
+            return Ok(());
+        }
+        #[cfg(windows)]
+        {
+            let script = format!(
+                "Expand-Archive -LiteralPath '{}' -DestinationPath '{}' -Force",
+                archive_s.replace('\'', "''"),
+                dest_s.replace('\'', "''")
+            );
+            return run(hidden_command("powershell").args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                &script,
+            ]));
+        }
+        #[cfg(not(windows))]
+        {
+            return Err("no hay extractor zip".into());
+        }
+    }
+
+    if name.ends_with(".tar.zst") || name.ends_with(".tzst") {
+        if run(hidden_command("tar").args(["--zstd", "-xf", &archive_s, "-C", &dest_s])).is_ok() {
+            return Ok(());
+        }
+        let piped = format!(
+            "zstd -dc '{}' | tar -xf - -C '{}'",
+            archive_s.replace('\'', "'\\''"),
+            dest_s.replace('\'', "'\\''")
+        );
+        return run(hidden_command("sh").args(["-c", &piped]));
+    }
+
+    if name.ends_with(".tgz") || name.ends_with(".tar.gz") {
+        return run(hidden_command("tar").args(["-xzf", &archive_s, "-C", &dest_s]));
+    }
+
+    if name.ends_with(".tar") {
+        return run(hidden_command("tar").args(["-xf", &archive_s, "-C", &dest_s]));
+    }
+
+    Err(format!("formato de archivo no soportado: {}", name))
+}
+
+fn download_url_with_progress(
+    app: &tauri::AppHandle,
+    url: &str,
+    dest: &Path,
+) -> Result<(), String> {
+    if let Some(parent) = dest.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    ollama_log(&format!("Descargando {}", url));
+    let resp = ollama_http_agent()
+        .get(url)
+        .call()
+        .map_err(|e| format!("descarga Ollama: {}", e))?;
+    if resp.status() >= 400 {
+        return Err(format!("descarga Ollama HTTP {}", resp.status()));
+    }
+    let total = resp
+        .header("Content-Length")
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(0);
+    let mut reader = resp.into_reader();
+    let tmp = dest.with_extension("partial");
+    let mut file =
+        std::fs::File::create(&tmp).map_err(|e| format!("no se pudo crear descarga: {}", e))?;
+    let mut buf = [0u8; 64 * 1024];
+    let mut copied: u64 = 0;
+    let mut last_pct: i32 = -1;
+    loop {
+        let n = reader
+            .read(&mut buf)
+            .map_err(|e| format!("lectura descarga: {}", e))?;
+        if n == 0 {
+            break;
+        }
+        file.write_all(&buf[..n])
+            .map_err(|e| format!("escritura descarga: {}", e))?;
+        copied += n as u64;
+        let pct: i32 = if total > 0 {
+            ((copied.min(total) * 100) / total) as i32
+        } else {
+            -1
+        };
+        if pct != last_pct {
+            last_pct = pct;
+            let msg = if pct >= 0 {
+                format!("Descargando Ollama (motor de IA) - {}%", pct)
+            } else {
+                format!(
+                    "Descargando Ollama (motor de IA) - {} MB...",
+                    copied / (1024 * 1024)
+                )
+            };
+            update_status(app, |s| {
+                s.phase = "downloading".into();
+                s.message = msg;
+                s.percent = pct;
+            });
+        }
+    }
+    drop(file);
+    std::fs::rename(&tmp, dest).map_err(|e| format!("no se pudo finalizar descarga: {}", e))?;
+    Ok(())
+}
+
+fn install_portable_ollama(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let archives = official_ollama_archives();
+    if archives.is_empty() {
+        return Err("no hay paquete portable de Ollama para esta plataforma".into());
+    }
+    let download_dir = ollama_download_dir();
+    let runtime = ollama_runtime_dir();
+    let _ = std::fs::create_dir_all(&download_dir);
+    let mut last_err = String::from("sin intentos");
+    for (url, filename) in archives {
+        update_status(app, |s| {
+            s.phase = "downloading".into();
+            s.message = "Descargando Ollama (motor de IA portatil)...".into();
+            s.percent = -1;
+        });
+        let archive = download_dir.join(filename);
+        match download_url_with_progress(app, url, &archive) {
+            Ok(()) => {
+                update_status(app, |s| {
+                    s.phase = "ollama".into();
+                    s.message = "Extrayendo Ollama...".into();
+                    s.percent = -1;
+                });
+                ollama_log(&format!("Extrayendo {} -> {}", archive.display(), runtime.display()));
+                let _ = std::fs::remove_dir_all(&runtime);
+                let _ = std::fs::create_dir_all(&runtime);
+                match extract_archive(&archive, &runtime) {
+                    Ok(()) => {
+                        if let Some(bin) = find_portable_ollama(&runtime) {
+                            ensure_unix_executable(&bin);
+                            if binary_runs(&bin) {
+                                let _ = std::fs::remove_file(&archive);
+                                ollama_log(&format!("Ollama portable listo: {}", bin.display()));
+                                return Ok(bin);
+                            }
+                            last_err = format!("binario extraido no ejecuta: {}", bin.display());
+                        } else {
+                            last_err = "el archivo no contiene el binario ollama".into();
+                        }
+                    }
+                    Err(e) => last_err = e,
+                }
+            }
+            Err(e) => {
+                last_err = e;
+                let _ = std::fs::remove_file(&archive);
+            }
+        }
+    }
+    Err(last_err)
 }
 
 fn home_dir() -> PathBuf {
@@ -220,24 +699,41 @@ fn kill_ollama_child(app: &tauri::AppHandle) {
             "kill_ollama_child: terminando Ollama iniciado por SmartCaja (pid {})",
             ollama.pid
         ));
+        let pid = ollama.pid;
         match ollama.child.kill() {
             Ok(()) => {
                 for _ in 0..10 {
                     match ollama.child.try_wait() {
                         Ok(Some(_)) => {
                             ollama_log("kill_ollama_child: OK");
-                            return;
+                            break;
                         }
                         Ok(None) => std::thread::sleep(Duration::from_millis(100)),
                         Err(e) => {
                             ollama_log(&format!("kill_ollama_child: {}", e));
-                            return;
+                            break;
                         }
                     }
                 }
-                ollama_log("kill_ollama_child: espera agotada");
             }
             Err(e) => ollama_log(&format!("kill_ollama_child: {}", e)),
+        }
+        // Only the PID we spawned (never `taskkill ollama.exe` by name).
+        #[cfg(windows)]
+        {
+            let _ = hidden_command("taskkill")
+                .args(["/PID", &pid.to_string(), "/T", "/F"])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+        }
+        #[cfg(unix)]
+        {
+            let _ = hidden_command("kill")
+                .args(["-TERM", &format!("-{}", pid)])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
         }
     }
 }
@@ -268,16 +764,6 @@ fn pick_port() -> u16 {
         .and_then(|l| l.local_addr())
         .map(|a| a.port())
         .unwrap_or(7860)
-}
-
-fn wait_for_port(port: u16, attempts: u32) -> bool {
-    for _ in 0..attempts {
-        if TcpStream::connect(("127.0.0.1", port)).is_ok() {
-            return true;
-        }
-        std::thread::sleep(Duration::from_millis(500));
-    }
-    false
 }
 
 fn backend_app_url(port: u16) -> String {
@@ -421,7 +907,9 @@ fn apply_backend_ready(app: &tauri::AppHandle, port: u16) {
         s.can_continue = true;
         s.backend_error = None;
         s.phase = "ready".into();
-        if s.message.starts_with("Descargando") || s.message.starts_with("Componente") {
+        if s.ollama_done
+            && (s.message.starts_with("Descargando") || s.message.starts_with("Componente"))
+        {
             s.message = "Servicios listos.".into();
         }
     });
@@ -485,7 +973,7 @@ fn model_for_ram() -> String {
 
 fn pull_model_with_progress(app: &tauri::AppHandle, model: &str) -> bool {
     let body = format!("{{\"name\":\"{}\"}}", model);
-    let resp = ureq::post("http://127.0.0.1:11434/api/pull")
+    let resp = ureq::post(&format!("{}/api/pull", OLLAMA_API))
         .set("Content-Type", "application/json")
         .send_string(&body);
     let resp = match resp {
@@ -559,6 +1047,92 @@ fn finish_ollama_bootstrap(app: &tauri::AppHandle, backend_port: u16) {
     ollama_log("ollama_done=true; splash debe hacer location.replace('/') via /api/desktop-status");
 }
 
+fn ensure_ollama_api(app: &tauri::AppHandle) -> bool {
+    if ollama_http_healthy() {
+        ollama_log("Ollama del sistema ya responde en :11434 (no se detendra al cerrar)");
+        update_status(app, |s| {
+            s.phase = "ollama".into();
+            s.message = "Usando Ollama del sistema (ya en ejecucion).".into();
+            s.percent = -1;
+        });
+        return true;
+    }
+
+    if let Some(bin) = find_portable_ollama(&ollama_runtime_dir()) {
+        ensure_unix_executable(&bin);
+        if binary_runs(&bin) {
+            ollama_log(&format!("Arrancando Ollama portable existente: {}", bin.display()));
+            return start_and_wait_ollama(
+                app,
+                Some(&bin),
+                "Iniciando Ollama portable...",
+            );
+        }
+    }
+
+    if system_ollama_available() {
+        ollama_log("Arrancando Ollama del PATH (la app lo detendra al cerrar)");
+        return start_and_wait_ollama(app, None, "Iniciando el servicio de IA...");
+    }
+
+    update_status(app, |s| {
+        s.phase = "downloading".into();
+        s.message = "Ollama no esta instalado. Descargando motor de IA portatil...".into();
+        s.percent = -1;
+    });
+    match install_portable_ollama(app) {
+        Ok(bin) => start_and_wait_ollama(
+            app,
+            Some(&bin),
+            "Iniciando el servicio de IA...",
+        ),
+        Err(e) => {
+            ollama_log(&format!("No se pudo instalar Ollama portable: {}", e));
+            update_status(app, |s| {
+                s.phase = "warning".into();
+                s.message =
+                    "No se pudo descargar Ollama. La app abrira sin IA.".into();
+                s.percent = -1;
+            });
+            false
+        }
+    }
+}
+
+fn pull_required_models(app: &tauri::AppHandle) {
+    if !ollama_http_healthy() {
+        ollama_log("Omitiendo pull: API Ollama no disponible");
+        return;
+    }
+    let model = model_for_ram();
+    update_status(app, |s| {
+        s.phase = "downloading".into();
+        s.message = format!("Descargando el modelo {} (solo la primera vez)...", model);
+        s.percent = -1;
+    });
+    if pull_model_with_progress(app, &model) {
+        update_status(app, |s| {
+            s.message = format!("Modelo {} listo.", model);
+            s.percent = 100;
+        });
+    }
+
+    for extra in &app_config().extra_models {
+        update_status(app, |s| {
+            s.phase = "downloading".into();
+            s.message = format!("Descargando componente de IA {}...", extra);
+            s.percent = -1;
+        });
+        if pull_model_with_progress(app, extra) {
+            ollama_log(&format!("Modelo adicional '{}' listo.", extra));
+            update_status(app, |s| {
+                s.message = format!("Componente {} listo.", extra);
+                s.percent = 100;
+            });
+        }
+    }
+}
+
 fn bootstrap_ollama(app: tauri::AppHandle, backend_port: u16) {
     std::thread::spawn(move || {
         update_status(&app, |s| {
@@ -566,47 +1140,15 @@ fn bootstrap_ollama(app: tauri::AppHandle, backend_port: u16) {
             s.message = "Verificando el motor de IA (Ollama)...".into();
             s.percent = -1;
         });
+        ollama_log(&format!(
+            "== {}: bootstrap Ollama portable (sin MSI, sin reinicio) ==",
+            app_config().product_name
+        ));
 
-        let installed = ollama_command()
-            .arg("--version")
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false);
-        if !installed {
-            finish_ollama_bootstrap(&app, backend_port);
-            return;
-        }
+        let _ = ensure_ollama_api(&app);
+        pull_required_models(&app);
 
-        if TcpStream::connect(("127.0.0.1", 11434)).is_err() {
-            let mut cmd = ollama_command();
-            cmd.arg("serve").stdout(Stdio::null()).stderr(Stdio::null());
-            match cmd.spawn() {
-                Ok(child) => {
-                    let pid = child.id();
-                    let ollama_state = app.state::<OllamaState>();
-                    *ollama_state.0.lock().unwrap() = Some(OllamaChild { pid, child });
-                    ollama_log(&format!("Ollama iniciado por SmartCaja (pid {})", pid));
-                }
-                Err(e) => ollama_log(&format!("No se pudo iniciar Ollama: {}", e)),
-            }
-            wait_for_port(11434, 30);
-        }
-
-        let model = model_for_ram();
-        pull_model_with_progress(&app, &model);
-
-        for extra in &app_config().extra_models {
-            pull_model_with_progress(&app, extra);
-            ollama_log(&format!("Modelo adicional '{}' listo.", extra));
-            update_status(&app, |s| {
-                s.message = format!("Componente {} listo.", extra);
-                s.percent = 100;
-            });
-        }
-
-        ollama_log("extra_models terminado; entrando a finish_ollama_bootstrap");
+        ollama_log("bootstrap Ollama terminado; la app continua sin reiniciar");
         finish_ollama_bootstrap(&app, backend_port);
     });
 }
@@ -651,6 +1193,7 @@ fn main() {
             ollama_log(&format!("Puerto backend elegido: {}", port));
 
             let data_dir = user_data_dir().to_string_lossy().to_string();
+            let ollama_models = ollama_models_dir().to_string_lossy().to_string();
             let backend_state = app.state::<BackendState>();
             if backend_state.0.lock().unwrap().is_some() {
                 ollama_log("WARN: sidecar ya registrado; omitiendo segundo spawn");
@@ -662,6 +1205,9 @@ fn main() {
                     .env("DATA_DIR", data_dir)
                     .env("RUN_BY_TAURI", "1")
                     .env("PYTHONIOENCODING", "utf-8")
+                    .env("OLLAMA_URL", OLLAMA_API)
+                    .env("OLLAMA_HOST", OLLAMA_HOST)
+                    .env("OLLAMA_MODELS", ollama_models)
                     .spawn()
                 {
                     Ok((mut rx, child)) => {
@@ -756,4 +1302,52 @@ fn main() {
                 _ => {}
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finds_ollama_in_bin_subdir() {
+        let dir = std::env::temp_dir().join(format!(
+            "smartcaja-ollama-find-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let runtime = dir.join("runtime");
+        let bin_dir = runtime.join("bin");
+        std::fs::create_dir_all(&bin_dir).unwrap();
+        std::fs::create_dir_all(runtime.join("lib").join("ollama")).unwrap();
+        let bin = bin_dir.join(ollama_bin_name());
+        std::fs::write(&bin, b"fake-ollama").unwrap();
+        let found = find_portable_ollama(&runtime).expect("debe encontrar binario");
+        assert_eq!(found, bin);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn official_archives_are_portable_not_msi() {
+        let urls = official_ollama_archives();
+        assert!(
+            !urls.is_empty(),
+            "esta plataforma debe tener zip/tgz/tar.zst"
+        );
+        for (url, name) in urls {
+            let lower = format!("{} {}", url, name).to_lowercase();
+            assert!(!lower.contains("ollamasetup"), "{}", name);
+            assert!(!lower.contains(".msi"), "{}", name);
+            assert!(
+                name.ends_with(".zip")
+                    || name.ends_with(".tgz")
+                    || name.ends_with(".tar.zst")
+                    || name.ends_with(".tar.gz"),
+                "{}",
+                name
+            );
+        }
+    }
 }

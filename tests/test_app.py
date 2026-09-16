@@ -1200,6 +1200,14 @@ class TestCrossPlatform(unittest.TestCase):
         self.assertTrue((ROOT / "scripts" / "diagnose.ps1").exists())
         self.assertTrue((ROOT / "scripts" / "diagnose.sh").exists())
 
+    def test_desktop_ollama_portable_not_msi(self):
+        rust = (ROOT / "desktop" / "src-tauri" / "src" / "main.rs").read_text(encoding="utf-8")
+        self.assertIn("install_portable_ollama", rust)
+        self.assertIn("ollama-windows-amd64.zip", rust)
+        self.assertIn("ollama-linux-amd64.tgz", rust)
+        self.assertNotIn("OllamaSetup.exe", rust)
+        self.assertIn("record_owned_ollama", rust)
+
     def test_install_json_ollama_windows(self):
         """Windows debe usar OllamaSetup.exe descargado con curl, no winget
         (winget no siempre está disponible en todas las versiones de Windows)."""
@@ -1442,6 +1450,11 @@ class TestSecurityAdvanced(unittest.TestCase):
     def test_ensure_ollama_running_exists(self):
         content = (ROOT / "server" / "app.py").read_text(encoding="utf-8")
         self.assertIn("def ensure_ollama_running", content)
+
+    def test_tauri_skips_python_ollama_autostart(self):
+        content = (ROOT / "server" / "app.py").read_text(encoding="utf-8")
+        self.assertIn("RUN_BY_TAURI", content)
+        self.assertIn("portable", content.lower())
 
     def test_frontend_uses_escape_html(self):
         # La lógica de escapeHtml vive en app.js (no en index.html)

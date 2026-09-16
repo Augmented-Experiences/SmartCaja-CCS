@@ -14,8 +14,12 @@ Rust (src-tauri/src/main.rs) — genérico para todas las herramientas
   1. Elige un puerto libre.
   2. Lanza el backend empaquetado como "sidecar" (backend), pasándole
      PORT y DATA_DIR por variables de entorno.
-  3. Prepara Ollama (best-effort): serve + pull del modelo según RAM
-     (modelos definidos por herramienta en appconfig.json).
+  3. Prepara Ollama **sin instalador de sistema** (sin MSI / OllamaSetup.exe):
+     si ya hay un Ollama sano en `127.0.0.1:11434` lo reutiliza; si no, arranca
+     un binario portable previo en `%APPDATA%/SmartCaja/ollama/` (o el data dir
+     de la herramienta); si no existe, descarga el zip/tgz oficial, extrae,
+     arranca `ollama serve` y hace pull del modelo **sin reiniciar la app**.
+     Solo se detiene el PID de Ollama que esta app haya arrancado.
   4. Muestra el progreso en la pantalla de carga y, al estar listo,
      navega a http://127.0.0.1:<puerto>/ui/index.html (la UI real).
   5. Al cerrar la app, detiene el backend.
@@ -54,7 +58,7 @@ Todo lo específico de cada app vive en `desktop/smartsuite.config.json`:
 - Rust (stable) + Cargo.
 - Node 18+ (para la CLI de Tauri).
 - Linux: `libwebkit2gtk-4.1-dev`, `librsvg2-dev`, `libgtk-3-dev`, `libayatana-appindicator3-dev`, `patchelf`, `build-essential` (ver CI).
-- **Ollama** NO se empaqueta: se instala/usa en la máquina del usuario (la app intenta prepararlo automáticamente si está presente).
+- **Ollama** NO se empaqueta en el instalador ni se ejecuta el MSI/sistema: al primer arranque la app descarga un **Ollama portable** al data dir (`%APPDATA%\SmartCaja\ollama\` en Windows; `~/.local/share/SmartCaja/ollama/` en Linux) si no hay un Ollama sano ya escuchando en el puerto 11434.
 
 ## Build local
 
@@ -123,4 +127,4 @@ Los instaladores de cada SO deben construirse en su propio SO. Usa el workflow d
 
 ## Cómo funciona con Ollama y los modelos
 
-Igual que la versión Pinokio: Ollama y los modelos viven en la máquina del usuario. Al iniciar, la app (best-effort) arranca `ollama serve` y descarga el modelo según la RAM (`<6 GB` → `llama3.2:1b`, `6–12 GB` → `llama3.2:3b`, `>12 GB` → `llama3.1:8b`). Si Ollama no está instalado, la app abre igual y la UI indica que el motor de IA está desconectado con instrucciones. Requiere internet solo la primera vez; luego funciona 100% local.
+Igual que la versión Pinokio a nivel de API HTTP: la app habla con Ollama en `127.0.0.1:11434`. Al iniciar: (1) reutiliza un Ollama de sistema **ya en ejecución** si `/api/tags` responde; (2) si no, arranca un Ollama portable ya descargado en el data dir; (3) si no hay binario, descarga el zip (Windows amd64) o tgz/tar.zst (Linux) oficial, extrae y arranca `serve` **sin reiniciar**; (4) hace pull del modelo según RAM (`<6 GB` → `llama3.2:1b`, `6–12 GB` → `llama3.2:3b`, `>12 GB` → `llama3.1:8b`) con progreso en el splash. Al cerrar la ventana se detiene el sidecar y **solo** el Ollama que esta app haya arrancado — nunca un Ollama de sistema que el usuario ya tenía. Requiere internet solo la primera vez; luego funciona 100% local.
