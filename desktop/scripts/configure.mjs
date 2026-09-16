@@ -30,7 +30,7 @@ const publisher = cfg.publisher || "Cámara de Comercio de Santiago";
 const version = cfg.version || "1.0.0";
 const identifier = req("identifier");
 const dataDirName = req("dataDirName");
-const accent = cfg.accent || "#F4C10E";
+const accent = cfg.accent || "#00D53A";
 
 /** Identificador Rust/npm estable (co.org.ccs.smartgastos → smartgastos). */
 function cargoPackageName() {

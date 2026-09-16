@@ -55,7 +55,7 @@ module.exports = {
           icon: "fa-solid fa-circle",
           text: "En ejecución",
           href: "start.json",
-          style: "color: #3DAE2B",
+          style: "color: #00D53A",
         },
         {
           icon: "fa-solid fa-arrow-up-right-from-square",

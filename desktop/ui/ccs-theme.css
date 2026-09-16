@@ -3,7 +3,7 @@
  * (SmartCaja, SmartRedes, SmartGastos, …)
  *
  * Identidad de la Cámara de Comercio de Santiago (CCS),
- * basada en los colores de la bandera colombiana: azul marino, dorado y rojo.
+ * con azul, verde y celeste institucionales.
  *
  * Uso: enlazar en el <head> de la app y usar las variables --ccs-*.
  *   <link rel="stylesheet" href="brand/ccs-theme.css" />
@@ -15,17 +15,18 @@
 
 :root {
   /* Paleta base CCS */
-  --ccs-azul-oscuro: #173A7A;   /* primario / estructura / texto */
-  --ccs-azul:        #1E56A8;
-  --ccs-celeste:     #2E6FC0;
-  --ccs-rojo:        #CE1126;   /* acento fuerte (bandera) */
-  --ccs-dorado:      #F4C10E;   /* acento dominante (bandera) */
-  --ccs-verde:       #3DAE2B;   /* semántico: positivo/éxito */
-  --ccs-verde-brillante: #0DD700;
+  --ccs-azul-oscuro: #002558;   /* primario / estructura / texto */
+  --ccs-azul:        #3A89DA;
+  --ccs-celeste:     #3A89DA;
+  --ccs-rojo:        #3A89DA;   /* acento secundario */
+  --ccs-dorado:      #00D53A;   /* acento dominante */
+  --ccs-verde:       #00D53A;   /* semántico: positivo/éxito */
+  --ccs-verde-brillante: #00D53A;
+  --ccs-gradient: linear-gradient(126.54deg, rgb(0, 215, 0) -3.03%, rgb(0, 86, 202) 56.75%);
 
-  /* Color de acento por-herramienta (por defecto: dorado CCS) */
+  /* Color de acento por-herramienta (por defecto: verde CCS) */
   --ccs-accent:      var(--ccs-dorado);
-  --ccs-accent-strong: #E0A800;
+  --ccs-accent-strong: #3A89DA;
 
   /* Neutros / superficies */
   --bg-base:   #F7F8FA;
@@ -39,34 +40,28 @@
   --primary:   var(--ccs-azul-oscuro);
   --primary-h: var(--ccs-azul);
   --success:   var(--ccs-verde);
-  --warning:   #f59e0b;
+  --warning:   #3A89DA;
   --danger:    #dc2626;
 
   --radius: 10px;
-  --shadow-sm: 0 1px 3px rgba(23,58,122,0.08);
-  --shadow-md: 0 4px 12px rgba(23,58,122,0.10);
+  --shadow-sm: 0 1px 3px rgba(0,37,88,0.08);
+  --shadow-md: 0 4px 12px rgba(0,37,88,0.10);
 }
 
 /* Barra tricolor de marca (topbar / bajo el logo). Aplicar con la clase. */
 .ccs-tricolor-top {
   border-top: 3px solid transparent;
-  border-image: linear-gradient(90deg,
-      var(--ccs-azul-oscuro) 0 40%,
-      var(--ccs-rojo) 40% 70%,
-      var(--ccs-accent) 70% 100%) 1;
+  border-image: var(--ccs-gradient) 1;
 }
 .ccs-tricolor-bottom {
   border-bottom: 3px solid transparent;
-  border-image: linear-gradient(90deg,
-      var(--ccs-azul-oscuro) 0 33%,
-      var(--ccs-rojo) 33% 66%,
-      var(--ccs-accent) 66% 100%) 1;
+  border-image: var(--ccs-gradient) 1;
 }
 
-/* Botón primario dorado (dominante) con texto azul marino. */
+/* Botón primario CCS con texto blanco. */
 .ccs-btn-primary {
-  background: linear-gradient(135deg, var(--ccs-accent), var(--ccs-accent-strong));
-  color: var(--ccs-azul-oscuro);
+  background: var(--ccs-gradient);
+  color: #fff;
   border: 0;
   border-bottom: 2px solid var(--ccs-azul-oscuro);
   border-radius: var(--radius);
@@ -81,5 +76,5 @@
   display: block;
   width: 64px; height: 4px; margin: 10px auto 0;
   border-radius: 4px;
-  background: linear-gradient(90deg, var(--ccs-azul-oscuro), var(--ccs-rojo), var(--ccs-accent));
+  background: var(--ccs-gradient);
 }

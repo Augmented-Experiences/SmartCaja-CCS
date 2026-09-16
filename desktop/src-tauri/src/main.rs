@@ -1,10 +1,14 @@
 // App de escritorio nativa SmartSuite (Tauri v2)
-#![cfg_attr(all(not(debug_assertions), target_os = "windows"), windows_subsystem = "windows")]
+#![cfg_attr(
+    all(not(debug_assertions), target_os = "windows"),
+    windows_subsystem = "windows"
+)]
 
 use std::io::{BufRead, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
@@ -43,6 +47,12 @@ fn app_config() -> &'static AppConfig {
 }
 
 struct BackendState(Mutex<Option<CommandChild>>);
+struct OllamaChild {
+    pid: u32,
+    child: Child,
+}
+struct OllamaState(Mutex<Option<OllamaChild>>);
+struct ShutdownState(AtomicBool);
 struct Navigated(Mutex<bool>);
 struct LastProbe(Mutex<String>);
 
@@ -192,8 +202,9 @@ fn backend_log(line: &str) {
     ollama_log(line);
 }
 
-fn kill_backend_child(state: &BackendState) {
-    if let Some(child) = state.0.lock().unwrap().take() {
+fn kill_backend_child(app: &tauri::AppHandle) {
+    let backend_state = app.state::<BackendState>();
+    if let Some(child) = backend_state.0.lock().unwrap().take() {
         ollama_log("kill_backend_child: terminando sidecar backend");
         match child.kill() {
             Ok(()) => ollama_log("kill_backend_child: OK"),
@@ -202,9 +213,49 @@ fn kill_backend_child(state: &BackendState) {
     }
 }
 
+fn kill_ollama_child(app: &tauri::AppHandle) {
+    let ollama_state = app.state::<OllamaState>();
+    if let Some(mut ollama) = ollama_state.0.lock().unwrap().take() {
+        ollama_log(&format!(
+            "kill_ollama_child: terminando Ollama iniciado por SmartCaja (pid {})",
+            ollama.pid
+        ));
+        match ollama.child.kill() {
+            Ok(()) => {
+                for _ in 0..10 {
+                    match ollama.child.try_wait() {
+                        Ok(Some(_)) => {
+                            ollama_log("kill_ollama_child: OK");
+                            return;
+                        }
+                        Ok(None) => std::thread::sleep(Duration::from_millis(100)),
+                        Err(e) => {
+                            ollama_log(&format!("kill_ollama_child: {}", e));
+                            return;
+                        }
+                    }
+                }
+                ollama_log("kill_ollama_child: espera agotada");
+            }
+            Err(e) => ollama_log(&format!("kill_ollama_child: {}", e)),
+        }
+    }
+}
+
 fn shutdown_app(app: &tauri::AppHandle, reason: &str) {
     ollama_log(&format!("shutdown_app: {}", reason));
-    kill_backend_child(&*app.state::<BackendState>());
+    kill_backend_child(app);
+    std::thread::sleep(Duration::from_millis(200));
+    kill_ollama_child(app);
+}
+
+fn shutdown_and_exit(app: &tauri::AppHandle, reason: &str) {
+    let shutdown_state = app.state::<ShutdownState>();
+    if shutdown_state.0.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    shutdown_app(app, reason);
+    app.exit(0);
 }
 
 fn pick_port() -> u16 {
@@ -314,10 +365,12 @@ fn probe_backend(port: u16) -> ProbeResult {
         if r.status() == 200 {
             if let Ok(body) = r.into_string() {
                 ollama_log(&format!("/api/desktop-ui: {}", body));
-                if body.contains("\"indexExists\":false") || body.contains("\"indexExists\": false") {
+                if body.contains("\"indexExists\":false") || body.contains("\"indexExists\": false")
+                {
                     return ProbeResult {
                         ok: false,
-                        detail: "sidecar sin app/index.html empaquetado (rebuild PyInstaller)".into(),
+                        detail: "sidecar sin app/index.html empaquetado (rebuild PyInstaller)"
+                            .into(),
                     };
                 }
             }
@@ -337,11 +390,7 @@ fn probe_backend(port: u16) -> ProbeResult {
             } else {
                 ProbeResult {
                     ok: false,
-                    detail: format!(
-                        "GET / status {} (no HTML). head={:?}",
-                        status,
-                        snippet
-                    ),
+                    detail: format!("GET / status {} (no HTML). head={:?}", status, snippet),
                 }
             }
         }
@@ -398,8 +447,7 @@ fn navigate_main_to_backend(app: &tauri::AppHandle, port: u16) -> Result<(), Str
     *app.state::<LastProbe>().0.lock().unwrap() = probe.detail.clone();
     ollama_log(&format!(
         "navigate_main_to_backend probe: ok={} {}",
-        probe.ok,
-        probe.detail
+        probe.ok, probe.detail
     ));
     if !probe.ok {
         update_status(app, |s| {
@@ -534,7 +582,15 @@ fn bootstrap_ollama(app: tauri::AppHandle, backend_port: u16) {
         if TcpStream::connect(("127.0.0.1", 11434)).is_err() {
             let mut cmd = ollama_command();
             cmd.arg("serve").stdout(Stdio::null()).stderr(Stdio::null());
-            let _ = cmd.spawn();
+            match cmd.spawn() {
+                Ok(child) => {
+                    let pid = child.id();
+                    let ollama_state = app.state::<OllamaState>();
+                    *ollama_state.0.lock().unwrap() = Some(OllamaChild { pid, child });
+                    ollama_log(&format!("Ollama iniciado por SmartCaja (pid {})", pid));
+                }
+                Err(e) => ollama_log(&format!("No se pudo iniciar Ollama: {}", e)),
+            }
             wait_for_port(11434, 30);
         }
 
@@ -559,6 +615,8 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .manage(BackendState(Mutex::new(None)))
+        .manage(OllamaState(Mutex::new(None)))
+        .manage(ShutdownState(AtomicBool::new(false)))
         .manage(AppStatus(Mutex::new(Status::initial())))
         .manage(Navigated(Mutex::new(false)))
         .manage(LastProbe(Mutex::new(String::new())))
@@ -577,18 +635,17 @@ fn main() {
                 w.on_window_event(move |event| {
                     match event {
                         WindowEvent::CloseRequested { .. } => {
-                            shutdown_app(&app_for_window, "ventana main CloseRequested");
+                            shutdown_and_exit(&app_for_window, "ventana main CloseRequested");
                         }
                         WindowEvent::Destroyed => {
-                            shutdown_app(&app_for_window, "ventana main Destroyed");
-                            app_for_window.exit(0);
+                            shutdown_and_exit(&app_for_window, "ventana main Destroyed");
                         }
                         _ => {}
                     }
                 });
             }
 
-            kill_backend_child(&*app.state::<BackendState>());
+            kill_backend_child(&handle);
             let port = pick_port();
             app.manage(BackendPort(port));
             ollama_log(&format!("Puerto backend elegido: {}", port));
@@ -625,7 +682,7 @@ fn main() {
                                 }
                             }
                             ollama_log("sidecar backend: canal de eventos cerrado (proceso terminó?)");
-                            shutdown_app(&sidecar_handle, "sidecar stdout/stderr EOF");
+                            shutdown_and_exit(&sidecar_handle, "sidecar stdout/stderr EOF");
                         });
                     }
                     Err(e) => {
@@ -683,18 +740,17 @@ fn main() {
         .run(|app_handle, event| {
             match event {
                 RunEvent::ExitRequested { .. } => {
-                    shutdown_app(app_handle, "RunEvent::ExitRequested");
+                    shutdown_and_exit(app_handle, "RunEvent::ExitRequested");
                 }
                 RunEvent::Exit => {
-                    shutdown_app(app_handle, "RunEvent::Exit");
+                    shutdown_and_exit(app_handle, "RunEvent::Exit");
                 }
                 RunEvent::WindowEvent { label, event, .. } if label == "main" => {
                     if matches!(event, WindowEvent::CloseRequested { .. }) {
-                        shutdown_app(app_handle, "RunEvent::WindowEvent CloseRequested");
+                        shutdown_and_exit(app_handle, "RunEvent::WindowEvent CloseRequested");
                     }
                     if matches!(event, WindowEvent::Destroyed) {
-                        shutdown_app(app_handle, "RunEvent::WindowEvent Destroyed");
-                        app_handle.exit(0);
+                        shutdown_and_exit(app_handle, "RunEvent::WindowEvent Destroyed");
                     }
                 }
                 _ => {}

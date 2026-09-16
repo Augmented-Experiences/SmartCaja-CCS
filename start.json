@@ -4,14 +4,14 @@
     {
       "method": "log",
       "params": {
-        "html": "<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;padding:20px 20px 0'><div style='display:flex;align-items:center;gap:12px;margin-bottom:12px'><div style='width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#F4C10E,#E0A800);display:flex;align-items:center;justify-content:center;font-size:20px;color:#173A7A;flex-shrink:0'>$</div><div><h3 style='margin:0;font-size:16px;color:#e2e8f0'>Iniciando SmartCaja</h3><p style='margin:2px 0 0;color:#94a3b8;font-size:12px'>Preparando servicios de flujo de caja...</p></div></div></div>"
+        "html": "<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;padding:20px 20px 0'><div style='display:flex;align-items:center;gap:12px;margin-bottom:12px'><div style='width:40px;height:40px;border-radius:10px;background:linear-gradient(126.54deg, rgb(0, 215, 0) -3.03%, rgb(0, 86, 202) 56.75%);display:flex;align-items:center;justify-content:center;font-size:20px;color:#002558;flex-shrink:0'>$</div><div><h3 style='margin:0;font-size:16px;color:#e2e8f0'>Iniciando SmartCaja</h3><p style='margin:2px 0 0;color:#94a3b8;font-size:12px'>Preparando servicios de flujo de caja...</p></div></div></div>"
       }
     },
 
     {
       "method": "log",
       "params": {
-        "html": "<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;padding:8px 20px'><div style='display:flex;align-items:center;gap:8px;padding:8px 14px;background:#0f172a;border:1px solid #1e293b;border-radius:6px'><div style='width:8px;height:8px;border-radius:50%;background:#06b6d4;flex-shrink:0'></div><span style='color:#94a3b8;font-size:12px'>Verificando dependencias Python...</span></div></div>"
+        "html": "<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;padding:8px 20px'><div style='display:flex;align-items:center;gap:8px;padding:8px 14px;background:#0f172a;border:1px solid #1e293b;border-radius:6px'><div style='width:8px;height:8px;border-radius:50%;background:#3A89DA;flex-shrink:0'></div><span style='color:#94a3b8;font-size:12px'>Verificando dependencias Python...</span></div></div>"
       }
     },
     {
@@ -24,14 +24,14 @@
     {
       "method": "log",
       "params": {
-        "html": "<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;padding:4px 20px'><div style='display:flex;align-items:center;gap:8px;padding:8px 14px;background:#0f2d1a;border:1px solid #16a34a33;border-radius:6px'><span style='color:#22c55e;font-size:14px'>&#10003;</span><span style='color:#86efac;font-size:12px'>Dependencias verificadas</span></div></div>"
+        "html": "<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;padding:4px 20px'><div style='display:flex;align-items:center;gap:8px;padding:8px 14px;background:#0f2d1a;border:1px solid #16a34a33;border-radius:6px'><span style='color:#00D53A;font-size:14px'>&#10003;</span><span style='color:#3A89DA;font-size:12px'>Dependencias verificadas</span></div></div>"
       }
     },
 
     {
       "method": "log",
       "params": {
-        "html": "<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;padding:8px 20px'><div style='display:flex;align-items:center;gap:8px;padding:8px 14px;background:#0f172a;border:1px solid #1e293b;border-radius:6px'><div style='width:8px;height:8px;border-radius:50%;background:#f59e0b;flex-shrink:0'></div><span style='color:#94a3b8;font-size:12px'>Verificando motor de IA (Ollama)...</span></div></div>"
+        "html": "<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;padding:8px 20px'><div style='display:flex;align-items:center;gap:8px;padding:8px 14px;background:#0f172a;border:1px solid #1e293b;border-radius:6px'><div style='width:8px;height:8px;border-radius:50%;background:#3A89DA;flex-shrink:0'></div><span style='color:#94a3b8;font-size:12px'>Verificando motor de IA (Ollama)...</span></div></div>"
       }
     },
     {
@@ -51,14 +51,14 @@
     {
       "method": "log",
       "params": {
-        "html": "<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;padding:4px 20px'><div style='display:flex;align-items:center;gap:8px;padding:8px 14px;background:#0f2d1a;border:1px solid #16a34a33;border-radius:6px'><span style='color:#22c55e;font-size:14px'>&#10003;</span><span style='color:#86efac;font-size:12px'>Ollama listo</span></div></div>"
+        "html": "<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;padding:4px 20px'><div style='display:flex;align-items:center;gap:8px;padding:8px 14px;background:#0f2d1a;border:1px solid #16a34a33;border-radius:6px'><span style='color:#00D53A;font-size:14px'>&#10003;</span><span style='color:#3A89DA;font-size:12px'>Ollama listo</span></div></div>"
       }
     },
 
     {
       "method": "log",
       "params": {
-        "html": "<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;padding:8px 20px'><div style='display:flex;align-items:center;gap:8px;padding:8px 14px;background:#0f172a;border:1px solid #1e293b;border-radius:6px'><div style='width:8px;height:8px;border-radius:50%;background:#3b82f6;flex-shrink:0'></div><span style='color:#94a3b8;font-size:12px'>Iniciando servidor de aplicaci&oacute;n...</span></div></div>"
+        "html": "<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;padding:8px 20px'><div style='display:flex;align-items:center;gap:8px;padding:8px 14px;background:#0f172a;border:1px solid #1e293b;border-radius:6px'><div style='width:8px;height:8px;border-radius:50%;background:#3A89DA;flex-shrink:0'></div><span style='color:#94a3b8;font-size:12px'>Iniciando servidor de aplicaci&oacute;n...</span></div></div>"
       }
     },
     {
@@ -88,7 +88,7 @@
     {
       "method": "log",
       "params": {
-        "html": "<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;padding:12px 20px'><div style='background:linear-gradient(135deg,#0f2d1a,#052e16);border:1px solid #16a34a44;border-radius:10px;padding:16px;text-align:center'><div style='display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px'><span style='color:#22c55e;font-size:16px'>&#10003;</span><span style='color:#22c55e;font-size:15px;font-weight:600'>Aplicaci&oacute;n lista</span></div><p style='color:#94a3b8;font-size:12px;margin:0'>Abriendo interfaz de usuario...</p></div></div>"
+        "html": "<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;padding:12px 20px'><div style='background:linear-gradient(135deg,#0f2d1a,#052e16);border:1px solid #16a34a44;border-radius:10px;padding:16px;text-align:center'><div style='display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px'><span style='color:#00D53A;font-size:16px'>&#10003;</span><span style='color:#00D53A;font-size:15px;font-weight:600'>Aplicaci&oacute;n lista</span></div><p style='color:#94a3b8;font-size:12px;margin:0'>Abriendo interfaz de usuario...</p></div></div>"
       }
     },
     {

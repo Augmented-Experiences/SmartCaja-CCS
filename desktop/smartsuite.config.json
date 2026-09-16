@@ -4,7 +4,7 @@
   "identifier": "cl.ccs.smartcaja",
   "version": "2.0.0",
   "dataDirName": "SmartCaja",
-  "accent": "#F4C10E",
+  "accent": "#00D53A",
   "window": {
     "title": "SmartCaja",
     "width": 1280,

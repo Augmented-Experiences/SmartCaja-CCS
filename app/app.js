@@ -696,13 +696,13 @@ function renderCashflowChart(months) {
       datasets: [{
         label: 'Saldo Acumulado',
         data: months.map(m => m.cumulative_balance),
-        borderColor: '#173A7A',
-        backgroundColor: 'rgba(23,58,122,0.08)',
+        borderColor: '#002558',
+        backgroundColor: 'rgba(0,37,88,0.08)',
         fill: true,
         tension: 0.3,
         pointRadius: 4,
-        pointBackgroundColor: '#F4C10E',
-        pointBorderColor: '#173A7A',
+        pointBackgroundColor: '#00D53A',
+        pointBorderColor: '#002558',
       }]
     },
     options: {
@@ -724,7 +724,7 @@ function renderIncomeExpenseChart(months) {
     data: {
       labels: months.map(m => m.label || m.month),
       datasets: [
-        { label: 'Ingresos', data: months.map(m => m.income?.total || m.income_total || 0), backgroundColor: 'rgba(61,174,43,0.7)', borderRadius: 4 },
+        { label: 'Ingresos', data: months.map(m => m.income?.total || m.income_total || 0), backgroundColor: 'rgba(0,213,58,0.7)', borderRadius: 4 },
         { label: 'Gastos', data: months.map(m => m.expenses?.total || m.expenses_total || 0), backgroundColor: 'rgba(220,38,38,0.6)', borderRadius: 4 },
       ]
     },
@@ -903,16 +903,16 @@ function renderSimulationChart(months) {
         {
           label: 'Saldo Acumulado',
           data: balances,
-          borderColor: '#2E6FC0',
-          backgroundColor: 'rgba(46,111,192,0.08)',
+          borderColor: '#3A89DA',
+          backgroundColor: 'rgba(58,137,218,0.08)',
           fill: true,
           tension: 0.3,
         },
         {
           label: 'Flujo Neto Mensual',
           data: netFlows,
-          borderColor: '#3DAE2B',
-          backgroundColor: 'rgba(61,174,43,0.08)',
+          borderColor: '#00D53A',
+          backgroundColor: 'rgba(0,213,58,0.08)',
           fill: false,
           tension: 0.3,
           borderDash: [5, 5],
@@ -1029,9 +1029,9 @@ function renderMonteCarloResults(data) {
       data: {
         labels,
         datasets: [
-          { label: 'P95', data: data.bandas_mensuales.map(b => b.p95), borderColor: 'rgba(244,193,14,0.7)', fill: false, borderDash: [5,5], pointRadius: 0 },
-          { label: 'P75', data: data.bandas_mensuales.map(b => b.p75), borderColor: 'rgba(244,193,14,0.45)', backgroundColor: 'rgba(244,193,14,0.08)', fill: '+1', pointRadius: 0 },
-          { label: 'Mediana', data: data.bandas_mensuales.map(b => b.p50), borderColor: '#173A7A', borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#F4C10E' },
+          { label: 'P95', data: data.bandas_mensuales.map(b => b.p95), borderColor: 'rgba(0,213,58,0.7)', fill: false, borderDash: [5,5], pointRadius: 0 },
+          { label: 'P75', data: data.bandas_mensuales.map(b => b.p75), borderColor: 'rgba(0,213,58,0.45)', backgroundColor: 'rgba(0,213,58,0.08)', fill: '+1', pointRadius: 0 },
+          { label: 'Mediana', data: data.bandas_mensuales.map(b => b.p50), borderColor: '#002558', borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#00D53A' },
           { label: 'P25', data: data.bandas_mensuales.map(b => b.p25), borderColor: 'rgba(206,17,38,0.35)', backgroundColor: 'rgba(206,17,38,0.06)', fill: '+1', pointRadius: 0 },
           { label: 'P5', data: data.bandas_mensuales.map(b => b.p5), borderColor: 'rgba(206,17,38,0.6)', fill: false, borderDash: [5,5], pointRadius: 0 },
         ]
@@ -1194,7 +1194,7 @@ async function loadSettings() {
           <h4 style="margin:0 0 12px; font-size:13px; color:var(--ccs-azul-oscuro);"><i class="fas fa-brain"></i> Modelos Instalados</h4>
           <div style="display:flex; flex-wrap:wrap; gap:6px;">
             ${models.length > 0 ? models.map(m => `
-              <span style="padding:4px 10px; background:rgba(23,58,122,0.06); border:1px solid rgba(23,58,122,0.15); border-radius:12px; font-size:11px; color:var(--ccs-azul);">${escapeHtml(m)}</span>
+              <span style="padding:4px 10px; background:rgba(0,37,88,0.06); border:1px solid rgba(0,37,88,0.15); border-radius:12px; font-size:11px; color:var(--ccs-azul);">${escapeHtml(m)}</span>
             `).join('') : '<span style="color:var(--text-muted); font-size:12px;">No hay modelos instalados</span>'}
           </div>
         </div>
@@ -1206,10 +1206,10 @@ async function loadSettings() {
             <button class="btn btn-sm" style="background:var(--ccs-azul); color:#fff; font-size:11px; padding:8px 12px; text-align:left;" onclick="resetTokenStats()">
               <i class="fas fa-redo"></i> Resetear estad\u00edsticas de tokens
             </button>
-            <button class="btn btn-sm" style="background:rgba(23,58,122,0.08); color:var(--ccs-azul); font-size:11px; padding:8px 12px; text-align:left;" onclick="navigateTo('agents')">
+            <button class="btn btn-sm" style="background:rgba(0,37,88,0.08); color:var(--ccs-azul); font-size:11px; padding:8px 12px; text-align:left;" onclick="navigateTo('agents')">
               <i class="fas fa-robot"></i> Configurar agentes y prompts
             </button>
-            <button class="btn btn-sm" style="background:rgba(23,58,122,0.08); color:var(--ccs-azul); font-size:11px; padding:8px 12px; text-align:left;" onclick="navigateTo('tokens')">
+            <button class="btn btn-sm" style="background:rgba(0,37,88,0.08); color:var(--ccs-azul); font-size:11px; padding:8px 12px; text-align:left;" onclick="navigateTo('tokens')">
               <i class="fas fa-chart-bar"></i> Ver uso de tokens
             </button>
           </div>
@@ -1225,7 +1225,7 @@ async function loadSettings() {
                 <div style="font-size:12px; font-weight:600;">${escapeHtml(a.name || a.id)}</div>
                 <div style="font-size:10px; color:var(--text-muted);">${escapeHtml(a.model || 'sin modelo')}</div>
               </div>
-              <span style="font-size:10px; padding:2px 6px; background:rgba(61,174,43,0.1); color:var(--ccs-verde); border-radius:8px;">T:${a.temperature || 0.7}</span>
+              <span style="font-size:10px; padding:2px 6px; background:rgba(0,213,58,0.1); color:var(--ccs-verde); border-radius:8px;">T:${a.temperature || 0.7}</span>
             </div>
           `).join('')}
         </div>
@@ -1237,7 +1237,7 @@ async function loadSettings() {
         <div class="card" style="padding:20px;">
           <h4 style="margin:0 0 8px; font-size:14px; color:var(--ccs-azul-oscuro);"><i class="fas fa-file-export"></i> Exportar datos</h4>
           <p style="margin:0 0 16px; font-size:12px; color:var(--text-muted);">Descarga un archivo con todas tus empresas, entrevistas, cashflows, simulaciones, agentes y configuraci\u00f3n. El archivo incluye un hash SHA-256 que impide su modificaci\u00f3n.</p>
-          <div id="exportInfo" style="margin-bottom:12px; padding:10px; background:rgba(23,58,122,0.04); border-radius:8px; border:1px solid var(--border); font-size:12px;"></div>
+          <div id="exportInfo" style="margin-bottom:12px; padding:10px; background:rgba(0,37,88,0.04); border-radius:8px; border:1px solid var(--border); font-size:12px;"></div>
           <button class="btn btn-sm" style="background:var(--ccs-azul); color:#fff; font-size:12px; padding:10px 16px;" onclick="exportAllData()" id="btnExportAll">
             <i class="fas fa-download"></i> Descargar archivo de exportaci\u00f3n
           </button>
@@ -1329,7 +1329,7 @@ function _processImportFile(file) {
     return;
   }
   statusEl.style.display = 'block';
-  statusEl.style.background = 'rgba(23,58,122,0.04)';
+  statusEl.style.background = 'rgba(0,37,88,0.04)';
   statusEl.style.color = 'var(--text-primary)';
   statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verificando archivo...';
   const reader = new FileReader();
@@ -1480,7 +1480,7 @@ async function loadAgents() {
       html += `<div><div style="font-weight:700; font-size:14px; color:var(--ccs-azul-oscuro);">${escapeHtml(agent.name || agentId)}</div>`;
       html += `<div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${escapeHtml(agent.description || '')}</div></div>`;
       html += `</div>`;
-      html += `<span style="padding:3px 10px; background:rgba(61,174,43,0.1); color:var(--ccs-verde); border-radius:12px; font-size:10px; font-weight:600;">${escapeHtml(agent.role || 'agent')}</span>`;
+      html += `<span style="padding:3px 10px; background:rgba(0,213,58,0.1); color:var(--ccs-verde); border-radius:12px; font-size:10px; font-weight:600;">${escapeHtml(agent.role || 'agent')}</span>`;
       html += `</div>`;
 
       // Model & Temperature
@@ -1505,7 +1505,7 @@ async function loadAgents() {
         html += `<div><label style="margin-bottom:8px; display:block; font-size:11px; font-weight:600;">Skills (${skills.length})</label>`;
         html += `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;">`;
         for (const sname of skills) {
-          html += `<button class="btn btn-sm" style="background:rgba(23,58,122,0.08); color:var(--ccs-azul); border:1px solid rgba(23,58,122,0.2); font-size:10px;" onclick="toggleSkillEditor('${agentId}','${sname}')">&#9998; ${escapeHtml(sname)}</button>`;
+          html += `<button class="btn btn-sm" style="background:rgba(0,37,88,0.08); color:var(--ccs-azul); border:1px solid rgba(0,37,88,0.2); font-size:10px;" onclick="toggleSkillEditor('${agentId}','${sname}')">&#9998; ${escapeHtml(sname)}</button>`;
         }
         html += `</div>`;
 
@@ -1659,7 +1659,7 @@ async function loadTokenStats() {
           datasets: [{
             label: 'Tokens usados',
             data: agentTokens,
-            backgroundColor: ['#173A7A', '#F4C10E', '#CE1126', '#2E6FC0', '#3DAE2B', '#8B5CF6'],
+            backgroundColor: ['#002558', '#00D53A', '#3A89DA', '#3A89DA', '#00D53A', '#8B5CF6'],
           }]
         },
         options: {
