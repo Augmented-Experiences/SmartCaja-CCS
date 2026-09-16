@@ -1178,6 +1178,16 @@ async function loadSettings() {
 
     document.getElementById('settingsContent').innerHTML = `
       <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:16px; margin-top:12px;">
+        <!-- Acerca de -->
+        <div class="card" style="padding:16px;">
+          <h4 style="margin:0 0 12px; font-size:13px; color:var(--ccs-azul-oscuro);"><i class="fas fa-info-circle"></i> Acerca de</h4>
+          <img src="logo-ccs.png" alt="Cámara de Comercio de Santiago" style="height:48px;width:auto;max-width:220px;object-fit:contain;margin:0 0 12px;">
+          <div style="font-size:12px; line-height:1.8;">
+            <div><strong>SmartCaja</strong> 2.0.0</div>
+            <div>Cámara de Comercio de Santiago (CCS)</div>
+          </div>
+        </div>
+
         <!-- Estado del Sistema -->
         <div class="card" style="padding:16px;">
           <h4 style="margin:0 0 12px; font-size:13px; color:var(--ccs-azul-oscuro);"><i class="fas fa-server"></i> Estado del Sistema</h4>

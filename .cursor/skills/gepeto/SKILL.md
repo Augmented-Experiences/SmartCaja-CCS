@@ -63,7 +63,7 @@ Gepeto crea todo dentro de un subdirectorio nuevo `<name>/`. Para aplicarlo a un
 
 Este repo ya es un plugin de Pinokio con formato JSON (`install.json`, `start.json`, `stop.json`, `reset.json`, `pinokio.js`) y arranca `server/app.py` con un venv + Ollama. Al generar el launcher con Gepeto:
 
-- `--name "SmartCaja"`, `--start "server/app.py"`, `--install "requirements.txt"`, `--icon` con el isotipo de CCS (`app/logo-ccs.svg` / `icon.png`).
+- `--name "SmartCaja"`, `--start "server/app.py"`, `--install "requirements.txt"`, `--icon` con el isotipo de CCS (`icon.png` / `app/favicon.ico`). El wordmark es `app/logo-ccs.png`.
 - Mantener intacta la lógica actual de Pinokio/Ollama: reproducir en `install.js`/`start.js` los pasos existentes (verificación/inicio de Ollama, `verify_deps.py`, `python server/app.py --port {{port}}`) en vez de los comandos de ejemplo.
 - Este proyecto **no** usa torch: eliminar el paso de `torch.js`/`torch.js` del `install.js`.
 - El resultado es multiplataforma automáticamente porque Pinokio abstrae el SO; verificar rutas y comandos en Windows/macOS/Linux.

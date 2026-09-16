@@ -57,6 +57,8 @@ check "start.json existe" "$([ -f "$ROOT/start.json" ] && echo true || echo fals
 check "stop.json existe" "$([ -f "$ROOT/stop.json" ] && echo true || echo false)"
 check "reset.json existe" "$([ -f "$ROOT/reset.json" ] && echo true || echo false)"
 check "icon.png existe" "$([ -f "$ROOT/icon.png" ] && echo true || echo false)"
+check "app/logo-ccs.png existe" "$([ -f "$ROOT/app/logo-ccs.png" ] && echo true || echo false)"
+check "app/favicon.ico existe" "$([ -f "$ROOT/app/favicon.ico" ] && echo true || echo false)"
 check "server/app.py existe" "$([ -f "$ROOT/server/app.py" ] && echo true || echo false)"
 check "app/index.html existe" "$([ -f "$ROOT/app/index.html" ] && echo true || echo false)"
 check "requirements.txt existe" "$([ -f "$ROOT/requirements.txt" ] && echo true || echo false)"

@@ -15,7 +15,8 @@
   "shortDescription": "Flujo de caja con IA local (CCS)",
   "longDescription": "SmartCaja — gestión de flujo de caja inteligente con IA local para PYMEs, de la Cámara de Comercio de Santiago.",
   "splashSubtitle": "Preparando tu asistente de flujo de caja con IA local...",
-  "splashLogo": "../icon.png",
+  "splashLogo": "brand/logo-ccs.png",
+  "splashMark": "../icon.png",
   "ollama": {
     "tiers": [
       {

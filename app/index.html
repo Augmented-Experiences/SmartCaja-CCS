@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SmartCaja — Cámara de Comercio de Santiago (CCS)</title>
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="lib/purify.min.js"></script>
@@ -82,7 +83,7 @@
       border-bottom: 3px solid transparent;
       border-image: linear-gradient(90deg, var(--ccs-azul-oscuro) 0 33%, var(--ccs-rojo) 33% 66%, var(--ccs-dorado) 66% 100%) 1;
     }
-    .sidebar-logo-img { height: 40px; width: auto; max-width: 110px; object-fit: contain; flex-shrink: 0; }
+    .sidebar-logo-img { height: 40px; width: auto; max-width: 140px; object-fit: contain; flex-shrink: 0; }
     .sidebar-logo-divider { width: 2px; height: 28px; background: var(--ccs-dorado); flex-shrink: 0; border-radius: 2px; }
     .sidebar-logo-text { font-size: 11px; font-weight: 700; color: var(--ccs-azul-oscuro); line-height: 1.3; }
     .sidebar-logo-sub { font-size: 9px; color: var(--text-muted); font-weight: 400; }
@@ -309,6 +310,7 @@
     /* ===== ONBOARDING HERO ===== */
     .welcome-hero { text-align: center; padding: 40px 20px; max-width: 600px; margin: 0 auto 32px; }
     .welcome-icon { font-size: 56px; color: var(--ccs-dorado); margin-bottom: 16px; text-shadow: 0 2px 4px rgba(0,37,88,0.15); }
+    .welcome-logo { height: 64px; width: auto; max-width: 280px; object-fit: contain; margin: 0 auto 16px; display: block; }
     .welcome-title { font-size: 24px; font-weight: 800; color: var(--ccs-azul-oscuro); margin-bottom: 8px; }
     .welcome-title::after { content: ""; display: block; width: 64px; height: 4px; margin: 10px auto 0; border-radius: 4px; background: linear-gradient(90deg, var(--ccs-azul-oscuro), var(--ccs-rojo), var(--ccs-dorado)); }
     .welcome-sub { font-size: 14px; color: var(--text-muted); margin-bottom: 24px; line-height: 1.6; }
@@ -359,7 +361,7 @@
   <!-- SIDEBAR -->
   <nav class="sidebar">
     <div class="sidebar-logo">
-      <img src="logo-ccs.svg" alt="SmartCaja — CCS" class="sidebar-logo-img" onerror="this.style.display='none'">
+      <img src="logo-ccs.png" alt="SmartCaja — Cámara de Comercio de Santiago" class="sidebar-logo-img" onerror="this.style.display='none'">
       <div class="sidebar-logo-divider"></div>
       <div>
         <div class="sidebar-logo-text">SmartCaja</div>
@@ -433,7 +435,7 @@
       <div id="readinessBanner"></div>
 
       <div class="welcome-hero">
-        <div class="welcome-icon"><i class="fas fa-chart-line"></i></div>
+        <img src="logo-ccs.png" alt="Cámara de Comercio de Santiago" class="welcome-logo">
         <div class="welcome-title">SmartCaja</div>
         <div class="welcome-sub">
           Crea, analiza y proyecta flujos de caja de manera inteligente para tu PYME.

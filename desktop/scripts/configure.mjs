@@ -210,15 +210,28 @@ writeFileSync(
 );
 
 let logoHtml = "";
-const logoRel = cfg.splashLogo || "../icon.png";
+const markRel = cfg.splashMark || "../icon.png";
+const markCandidates = [
+  resolve(DESKTOP, markRel),
+  resolve(DESKTOP, "..", "icon.png"),
+  resolve(DESKTOP, "brand", "logo-ccs-mark.png"),
+];
+const markSrc = markCandidates.find((p) => existsSync(p));
+if (markSrc) {
+  copyFileSync(markSrc, resolve(DESKTOP, "ui/splash-mark.png"));
+  logoHtml += `<img class="splash-mark" src="splash-mark.png" alt="" />\n  `;
+}
+
+const logoRel = cfg.splashLogo || "brand/logo-ccs.png";
 const logoCandidates = [
   resolve(DESKTOP, logoRel),
+  resolve(DESKTOP, "brand", "logo-ccs.png"),
   resolve(DESKTOP, "..", "icon.png"),
 ];
 const logoSrc = logoCandidates.find((p) => existsSync(p));
 if (logoSrc) {
   copyFileSync(logoSrc, resolve(DESKTOP, "ui/splash-logo.png"));
-  logoHtml = `<img class="splash-logo" src="splash-logo.png" alt="${escapeHtml(productName)}" />\n  `;
+  logoHtml += `<img class="splash-logo" src="splash-logo.png" alt="${escapeHtml(productName)}" />\n  `;
 }
 
 const splashTpl = readFileSync(resolve(DESKTOP, "ui/splash.template.html"), "utf8");

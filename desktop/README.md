@@ -43,14 +43,16 @@ Todo lo específico de cada app vive en `desktop/smartsuite.config.json`:
 | `dataDirName` | Nombre de la carpeta de datos por-usuario. |
 | `accent` | Color de acento CCS para diferenciar la herramienta (ej. dorado/teal/verde). |
 | `window` | Título y tamaño de ventana. |
+| `splashLogo` | Wordmark color CCS en la pantalla de carga (`brand/logo-ccs.png`). |
+| `splashMark` | Isotipo blanco sobre negro para la marca en splash oscuro (`../icon.png`). |
 | `ollama.tiers` | Modelo (chat/LLM) a descargar según la RAM (`maxRamGb: 0` = sin límite / último). |
 | `ollama.extraModels` | Modelos adicionales a descargar con progreso (p. ej. un modelo de **visión para OCR neuronal** como `moondream`). Se descargan igual que el LLM, con barra de progreso en la pantalla de carga — así capacidades pesadas (OCR) no requieren empaquetar torch/easyocr. |
 
-`scripts/configure.mjs` (se ejecuta solo con `npm run build`/`npm run dev`) genera desde ese config: `src-tauri/tauri.conf.json` (`.msi`/`-setup.exe` en Windows), `src-tauri/appconfig.json` (que Rust lee), `src-tauri/Cargo.toml`, `ui/index.html` (splash con `splashLogo` / isotipo CCS), `package.json` y los CSS de marca (`ui/ccs-theme.css`, `ui/accent.css`). Plantilla: `ui/splash.template.html`; texto en `productName`, `splashSubtitle`, `splashLogo`.
+`scripts/configure.mjs` (se ejecuta solo con `npm run build`/`npm run dev`) genera desde ese config: `src-tauri/tauri.conf.json` (`.msi`/`-setup.exe` en Windows), `src-tauri/appconfig.json` (que Rust lee), `src-tauri/Cargo.toml`, `ui/index.html` (splash con `splashLogo` / `splashMark`), `package.json` y los CSS de marca (`ui/ccs-theme.css`, `ui/accent.css`). Plantilla: `ui/splash.template.html`; texto en `productName`, `splashSubtitle`, `splashLogo`.
 
 ## Brand kit CCS (estilo compartido)
 
-`desktop/brand/` contiene la identidad reutilizable: `ccs-theme.css` (paleta azul marino/dorado/rojo + acentos, con `--ccs-accent` sobreescribible por herramienta) y los logos (`logo-ccs.svg`, `logo-ccs-full.png`, `icon.png`). Cualquier UI puede enlazar `ccs-theme.css` y usar las variables `--ccs-*` para verse consistente. Cada herramienta se diferencia con su `accent`.
+`desktop/brand/` contiene la identidad reutilizable: `ccs-theme.css` (paleta CCS + acentos, con `--ccs-accent` sobreescribible por herramienta) y los logos (`logo-ccs.png` wordmark color, `logo-ccs-mark.png` isotipo blanco sobre negro). El isotipo también vive en `icon.png` (Pinokio / `npm run icon`) y `app/favicon.ico`. Cualquier UI puede enlazar `ccs-theme.css` y usar las variables `--ccs-*`. Cada herramienta se diferencia con su `accent`.
 
 ## Requisitos de build
 

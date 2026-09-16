@@ -1024,6 +1024,25 @@ class TestPinokioStructure(unittest.TestCase):
     def test_icon_exists(self):
         self.assertTrue((ROOT / "icon.png").exists())
 
+    def test_ccs_brand_assets(self):
+        self.assertTrue((ROOT / "app" / "logo-ccs.png").exists())
+        self.assertTrue((ROOT / "app" / "favicon.ico").exists())
+        self.assertTrue((ROOT / "desktop" / "brand" / "logo-ccs.png").exists())
+        self.assertTrue((ROOT / "desktop" / "brand" / "logo-ccs-mark.png").exists())
+        self.assertTrue((ROOT / "desktop" / "src-tauri" / "icons" / "icon.ico").exists())
+        self.assertFalse((ROOT / "app" / "logo-ccs.svg").exists())
+        html = (ROOT / "app" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("logo-ccs.png", html)
+        self.assertIn('rel="icon"', html)
+        self.assertIn("favicon.ico", html)
+        self.assertNotIn("logo-ccs.svg", html)
+        self.assertNotIn("logo-ccce", html)
+        js = (ROOT / "app" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("logo-ccs.png", js)
+        cfg = json.loads((ROOT / "desktop" / "smartsuite.config.json").read_text(encoding="utf-8"))
+        self.assertEqual(cfg.get("splashLogo"), "brand/logo-ccs.png")
+        self.assertEqual(cfg.get("splashMark"), "../icon.png")
+
     def test_defaults_agents_json(self):
         path = ROOT / "defaults" / "agents.json"
         self.assertTrue(path.exists())

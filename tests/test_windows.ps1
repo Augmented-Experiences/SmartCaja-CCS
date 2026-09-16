@@ -50,6 +50,8 @@ Test-Check "start.json existe" { Test-Path "$ROOT/start.json" }
 Test-Check "stop.json existe" { Test-Path "$ROOT/stop.json" }
 Test-Check "reset.json existe" { Test-Path "$ROOT/reset.json" }
 Test-Check "icon.png existe" { Test-Path "$ROOT/icon.png" }
+Test-Check "app/logo-ccs.png existe" { Test-Path "$ROOT/app/logo-ccs.png" }
+Test-Check "app/favicon.ico existe" { Test-Path "$ROOT/app/favicon.ico" }
 Test-Check "server/app.py existe" { Test-Path "$ROOT/server/app.py" }
 Test-Check "app/index.html existe" { Test-Path "$ROOT/app/index.html" }
 Test-Check "requirements.txt existe" { Test-Path "$ROOT/requirements.txt" }
