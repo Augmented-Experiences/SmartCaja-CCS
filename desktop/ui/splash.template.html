@@ -11,10 +11,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{PRODUCT_NAME}}</title>
-  <link rel="stylesheet" href="ccce-theme.css" />
+  <link rel="stylesheet" href="ccs-theme.css" />
   <link rel="stylesheet" href="accent.css" />
   <style>
-    :root { --navy: var(--ccce-azul-oscuro); --gold: var(--ccce-accent); --red: var(--ccce-rojo); }
+    :root { --navy: var(--ccs-azul-oscuro); --gold: var(--ccs-accent); --red: var(--ccs-rojo); }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; }
     body {
@@ -58,7 +58,7 @@
   <div class="status" id="status">Iniciando servicios...</div>
   <div class="error" id="error"></div>
   <button class="enter" id="enter">Entrar ahora</button>
-  <div class="foot">Camara Colombiana de Comercio Electronico (CCCE)</div>
+  <div class="foot">{{PUBLISHER}}</div>
 
   <script>
     const statusEl = document.getElementById('status');

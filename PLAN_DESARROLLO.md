@@ -28,7 +28,7 @@ Un plugin para Pinokio que permite a las PYMEs crear, analizar y proyectar flujo
 - **Simulador:** Calcula el impacto de los escenarios.
 
 ## 6. Interfaz de Usuario (UI)
-- Estilo visual basado en la identidad de marca de la CCCE (colores corporativos, tipografía DM Sans).
+- Estilo visual basado en la identidad de marca de la CCS (colores corporativos, tipografía DM Sans).
 - Layout con sidebar de navegación y área principal.
 - Chat interactivo para la entrevista y simulaciones.
 - Dashboard con gráficos (Chart.js) para visualizar el flujo de caja.

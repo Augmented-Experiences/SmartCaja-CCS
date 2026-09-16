@@ -1,6 +1,6 @@
 /**
  * SmartCaja v2.1 — Frontend Application
- * Motor Financiero Modular con estilos CCCE Brand
+ * Motor Financiero Modular con estilos CCS Brand
  */
 
 // ============================================================================
@@ -475,7 +475,7 @@ function updateInterviewProgressFromData(progress) {
   const pctEl = document.getElementById('interviewPct');
   if (pctEl) {
     pctEl.textContent = `${Math.round(progress.progress_pct || 0)}%`;
-    pctEl.style.color = progress.is_complete ? 'var(--ccce-verde)' : 'var(--ccce-azul)';
+    pctEl.style.color = progress.is_complete ? 'var(--ccs-verde)' : 'var(--ccs-azul)';
   }
   const barEl = document.getElementById('interviewBar');
   if (barEl) barEl.style.width = `${progress.progress_pct || 0}%`;
@@ -538,7 +538,7 @@ function updateInterviewTopics(coveredTopics = []) {
   container.innerHTML = topics.map(t => {
     const covered = coveredTopics.includes(t.id);
     return `<div class="topic-item ${covered ? 'covered' : ''}">
-      <span class="topic-icon"><i class="fas ${covered ? 'fa-check-circle' : t.icon}" style="${covered ? 'color:var(--ccce-verde)' : ''}"></i></span> ${t.label}
+      <span class="topic-icon"><i class="fas ${covered ? 'fa-check-circle' : t.icon}" style="${covered ? 'color:var(--ccs-verde)' : ''}"></i></span> ${t.label}
     </div>`;
   }).join('');
 }
@@ -603,7 +603,7 @@ function pollGenerationProgress(taskId) {
         const existing = container.querySelectorAll('.notification-item').length;
         data.notifications.slice(existing).forEach(n => {
           const msg = (typeof n === 'string') ? n : (n.message || JSON.stringify(n));
-          container.innerHTML += `<div class="notification-item"><i class="fas fa-info-circle" style="color:var(--ccce-azul);margin-right:6px;"></i>${escapeHtml(msg)}</div>`;
+          container.innerHTML += `<div class="notification-item"><i class="fas fa-info-circle" style="color:var(--ccs-azul);margin-right:6px;"></i>${escapeHtml(msg)}</div>`;
         });
         container.scrollTop = container.scrollHeight;
       }
@@ -1070,7 +1070,7 @@ function renderMetrics(data) {
       ${renderMetricCard('Margen EBITDA', (m.margen_ebitda_pct?.pct || 0).toFixed(1) + '%', formatCurrency(m.margen_ebitda_pct?.absoluto || 0), 'blue')}
       ${renderMetricCard('Financiamiento', m.necesidad_financiamiento?.necesita_financiamiento ? formatCurrency(m.necesidad_financiamiento?.monto || 0) : 'No necesita', m.necesidad_financiamiento?.mensaje || '', m.necesidad_financiamiento?.necesita_financiamiento ? 'yellow' : 'green')}
     </div>
-    ${m.resumen_ejecutivo ? `<div class="card"><div class="card-title" style="color:${m.resumen_ejecutivo.color || 'var(--ccce-azul-oscuro)'}"><i class="fas fa-heartbeat"></i> Salud Financiera: ${m.resumen_ejecutivo.salud} (${m.resumen_ejecutivo.score}/100)</div></div>` : ''}
+    ${m.resumen_ejecutivo ? `<div class="card"><div class="card-title" style="color:${m.resumen_ejecutivo.color || 'var(--ccs-azul-oscuro)'}"><i class="fas fa-heartbeat"></i> Salud Financiera: ${m.resumen_ejecutivo.salud} (${m.resumen_ejecutivo.score}/100)</div></div>` : ''}
   `;
 }
 
@@ -1180,9 +1180,9 @@ async function loadSettings() {
       <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:16px; margin-top:12px;">
         <!-- Estado del Sistema -->
         <div class="card" style="padding:16px;">
-          <h4 style="margin:0 0 12px; font-size:13px; color:var(--ccce-azul-oscuro);"><i class="fas fa-server"></i> Estado del Sistema</h4>
+          <h4 style="margin:0 0 12px; font-size:13px; color:var(--ccs-azul-oscuro);"><i class="fas fa-server"></i> Estado del Sistema</h4>
           <div style="font-size:12px; line-height:2;">
-            <div><strong>Ollama:</strong> <span style="color:${healthData.ollama ? 'var(--ccce-verde)' : '#EF4444'};">${healthData.ollama ? '\u2713 Conectado' : '\u2717 Desconectado'}</span></div>
+            <div><strong>Ollama:</strong> <span style="color:${healthData.ollama ? 'var(--ccs-verde)' : '#EF4444'};">${healthData.ollama ? '\u2713 Conectado' : '\u2717 Desconectado'}</span></div>
             <div><strong>Modelos disponibles:</strong> ${models.length}</div>
             <div><strong>Agentes configurados:</strong> ${agents.length}</div>
             <div><strong>Versi\u00f3n:</strong> 2.0.0</div>
@@ -1191,25 +1191,25 @@ async function loadSettings() {
 
         <!-- Modelos Instalados -->
         <div class="card" style="padding:16px;">
-          <h4 style="margin:0 0 12px; font-size:13px; color:var(--ccce-azul-oscuro);"><i class="fas fa-brain"></i> Modelos Instalados</h4>
+          <h4 style="margin:0 0 12px; font-size:13px; color:var(--ccs-azul-oscuro);"><i class="fas fa-brain"></i> Modelos Instalados</h4>
           <div style="display:flex; flex-wrap:wrap; gap:6px;">
             ${models.length > 0 ? models.map(m => `
-              <span style="padding:4px 10px; background:rgba(23,58,122,0.06); border:1px solid rgba(23,58,122,0.15); border-radius:12px; font-size:11px; color:var(--ccce-azul);">${escapeHtml(m)}</span>
+              <span style="padding:4px 10px; background:rgba(23,58,122,0.06); border:1px solid rgba(23,58,122,0.15); border-radius:12px; font-size:11px; color:var(--ccs-azul);">${escapeHtml(m)}</span>
             `).join('') : '<span style="color:var(--text-muted); font-size:12px;">No hay modelos instalados</span>'}
           </div>
         </div>
 
         <!-- Acciones R\u00e1pidas -->
         <div class="card" style="padding:16px;">
-          <h4 style="margin:0 0 12px; font-size:13px; color:var(--ccce-azul-oscuro);"><i class="fas fa-tools"></i> Acciones R\u00e1pidas</h4>
+          <h4 style="margin:0 0 12px; font-size:13px; color:var(--ccs-azul-oscuro);"><i class="fas fa-tools"></i> Acciones R\u00e1pidas</h4>
           <div style="display:flex; flex-direction:column; gap:8px;">
-            <button class="btn btn-sm" style="background:var(--ccce-azul); color:#fff; font-size:11px; padding:8px 12px; text-align:left;" onclick="resetTokenStats()">
+            <button class="btn btn-sm" style="background:var(--ccs-azul); color:#fff; font-size:11px; padding:8px 12px; text-align:left;" onclick="resetTokenStats()">
               <i class="fas fa-redo"></i> Resetear estad\u00edsticas de tokens
             </button>
-            <button class="btn btn-sm" style="background:rgba(23,58,122,0.08); color:var(--ccce-azul); font-size:11px; padding:8px 12px; text-align:left;" onclick="navigateTo('agents')">
+            <button class="btn btn-sm" style="background:rgba(23,58,122,0.08); color:var(--ccs-azul); font-size:11px; padding:8px 12px; text-align:left;" onclick="navigateTo('agents')">
               <i class="fas fa-robot"></i> Configurar agentes y prompts
             </button>
-            <button class="btn btn-sm" style="background:rgba(23,58,122,0.08); color:var(--ccce-azul); font-size:11px; padding:8px 12px; text-align:left;" onclick="navigateTo('tokens')">
+            <button class="btn btn-sm" style="background:rgba(23,58,122,0.08); color:var(--ccs-azul); font-size:11px; padding:8px 12px; text-align:left;" onclick="navigateTo('tokens')">
               <i class="fas fa-chart-bar"></i> Ver uso de tokens
             </button>
           </div>
@@ -1217,15 +1217,15 @@ async function loadSettings() {
 
         <!-- Resumen de Agentes -->
         <div class="card" style="padding:16px;">
-          <h4 style="margin:0 0 12px; font-size:13px; color:var(--ccce-azul-oscuro);"><i class="fas fa-users-cog"></i> Agentes Activos</h4>
+          <h4 style="margin:0 0 12px; font-size:13px; color:var(--ccs-azul-oscuro);"><i class="fas fa-users-cog"></i> Agentes Activos</h4>
           ${agents.map(a => `
             <div style="display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid var(--border);">
-              <i class="fas fa-robot" style="color:var(--ccce-azul); font-size:12px;"></i>
+              <i class="fas fa-robot" style="color:var(--ccs-azul); font-size:12px;"></i>
               <div style="flex:1;">
                 <div style="font-size:12px; font-weight:600;">${escapeHtml(a.name || a.id)}</div>
                 <div style="font-size:10px; color:var(--text-muted);">${escapeHtml(a.model || 'sin modelo')}</div>
               </div>
-              <span style="font-size:10px; padding:2px 6px; background:rgba(61,174,43,0.1); color:var(--ccce-verde); border-radius:8px;">T:${a.temperature || 0.7}</span>
+              <span style="font-size:10px; padding:2px 6px; background:rgba(61,174,43,0.1); color:var(--ccs-verde); border-radius:8px;">T:${a.temperature || 0.7}</span>
             </div>
           `).join('')}
         </div>
@@ -1235,26 +1235,26 @@ async function loadSettings() {
       <div style="margin-top:24px; display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:16px;">
         <!-- Exportar -->
         <div class="card" style="padding:20px;">
-          <h4 style="margin:0 0 8px; font-size:14px; color:var(--ccce-azul-oscuro);"><i class="fas fa-file-export"></i> Exportar datos</h4>
+          <h4 style="margin:0 0 8px; font-size:14px; color:var(--ccs-azul-oscuro);"><i class="fas fa-file-export"></i> Exportar datos</h4>
           <p style="margin:0 0 16px; font-size:12px; color:var(--text-muted);">Descarga un archivo con todas tus empresas, entrevistas, cashflows, simulaciones, agentes y configuraci\u00f3n. El archivo incluye un hash SHA-256 que impide su modificaci\u00f3n.</p>
           <div id="exportInfo" style="margin-bottom:12px; padding:10px; background:rgba(23,58,122,0.04); border-radius:8px; border:1px solid var(--border); font-size:12px;"></div>
-          <button class="btn btn-sm" style="background:var(--ccce-azul); color:#fff; font-size:12px; padding:10px 16px;" onclick="exportAllData()" id="btnExportAll">
+          <button class="btn btn-sm" style="background:var(--ccs-azul); color:#fff; font-size:12px; padding:10px 16px;" onclick="exportAllData()" id="btnExportAll">
             <i class="fas fa-download"></i> Descargar archivo de exportaci\u00f3n
           </button>
         </div>
 
         <!-- Importar -->
         <div class="card" style="padding:20px;">
-          <h4 style="margin:0 0 8px; font-size:14px; color:var(--ccce-azul-oscuro);"><i class="fas fa-file-import"></i> Importar datos</h4>
+          <h4 style="margin:0 0 8px; font-size:14px; color:var(--ccs-azul-oscuro);"><i class="fas fa-file-import"></i> Importar datos</h4>
           <p style="margin:0 0 16px; font-size:12px; color:var(--text-muted);">Sube un archivo de exportaci\u00f3n generado en otra m\u00e1quina. Se verificar\u00e1 la integridad del archivo antes de importar. Los datos existentes no se sobreescriben.</p>
           <div id="importDropZone" style="border:2px dashed var(--border); border-radius:12px; padding:24px; text-align:center; cursor:pointer; transition:all 0.2s;" onclick="document.getElementById('importFileInput').click()">
-            <div style="font-size:28px; margin-bottom:6px;"><i class="fas fa-cloud-upload-alt" style="color:var(--ccce-azul);"></i></div>
+            <div style="font-size:28px; margin-bottom:6px;"><i class="fas fa-cloud-upload-alt" style="color:var(--ccs-azul);"></i></div>
             <div style="font-size:13px; font-weight:500; color:var(--text-primary);">Arrastra el archivo aqu\u00ed o haz click para seleccionar</div>
             <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Solo archivos .json generados por la exportaci\u00f3n</div>
           </div>
           <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="handleImportFileSelect(this)" />
           <div id="importStatus" style="display:none; margin-top:12px; padding:10px; border-radius:8px; font-size:12px;"></div>
-          <button class="btn btn-sm" style="background:var(--ccce-verde); color:#fff; font-size:12px; padding:10px 16px; margin-top:12px; display:none;" onclick="executeImportData()" id="btnImportAll">
+          <button class="btn btn-sm" style="background:var(--ccs-verde); color:#fff; font-size:12px; padding:10px 16px; margin-top:12px; display:none;" onclick="executeImportData()" id="btnImportAll">
             <i class="fas fa-upload"></i> Importar datos verificados
           </button>
         </div>
@@ -1476,11 +1476,11 @@ async function loadAgents() {
       // Header
       html += `<div style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:16px;">`;
       html += `<div style="display:flex; align-items:center; gap:12px;">`;
-      html += `<div style="width:40px; height:40px; border-radius:50%; background:var(--ccce-azul); display:flex; align-items:center; justify-content:center;"><i class="fas fa-robot" style="color:#fff; font-size:16px;"></i></div>`;
-      html += `<div><div style="font-weight:700; font-size:14px; color:var(--ccce-azul-oscuro);">${escapeHtml(agent.name || agentId)}</div>`;
+      html += `<div style="width:40px; height:40px; border-radius:50%; background:var(--ccs-azul); display:flex; align-items:center; justify-content:center;"><i class="fas fa-robot" style="color:#fff; font-size:16px;"></i></div>`;
+      html += `<div><div style="font-weight:700; font-size:14px; color:var(--ccs-azul-oscuro);">${escapeHtml(agent.name || agentId)}</div>`;
       html += `<div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${escapeHtml(agent.description || '')}</div></div>`;
       html += `</div>`;
-      html += `<span style="padding:3px 10px; background:rgba(61,174,43,0.1); color:var(--ccce-verde); border-radius:12px; font-size:10px; font-weight:600;">${escapeHtml(agent.role || 'agent')}</span>`;
+      html += `<span style="padding:3px 10px; background:rgba(61,174,43,0.1); color:var(--ccs-verde); border-radius:12px; font-size:10px; font-weight:600;">${escapeHtml(agent.role || 'agent')}</span>`;
       html += `</div>`;
 
       // Model & Temperature
@@ -1495,7 +1495,7 @@ async function loadAgents() {
       html += `<div style="margin-bottom:16px;">`;
       html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">`;
       html += `<label style="margin:0; font-size:11px; font-weight:600;">System Prompt</label>`;
-      html += `<button class="btn btn-sm" style="background:var(--ccce-azul); color:#fff; font-size:11px; padding:4px 12px;" onclick="saveAgentPrompt('${agentId}')">Guardar</button>`;
+      html += `<button class="btn btn-sm" style="background:var(--ccs-azul); color:#fff; font-size:11px; padding:4px 12px;" onclick="saveAgentPrompt('${agentId}')">Guardar</button>`;
       html += `</div>`;
       html += `<textarea id="agent-prompt-${agentId}" style="min-height:180px; font-size:11px; font-family:monospace; line-height:1.5; padding:10px; resize:vertical;">${escapeHtml(agent.system_prompt || '')}</textarea>`;
       html += `</div>`;
@@ -1505,7 +1505,7 @@ async function loadAgents() {
         html += `<div><label style="margin-bottom:8px; display:block; font-size:11px; font-weight:600;">Skills (${skills.length})</label>`;
         html += `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;">`;
         for (const sname of skills) {
-          html += `<button class="btn btn-sm" style="background:rgba(23,58,122,0.08); color:var(--ccce-azul); border:1px solid rgba(23,58,122,0.2); font-size:10px;" onclick="toggleSkillEditor('${agentId}','${sname}')">&#9998; ${escapeHtml(sname)}</button>`;
+          html += `<button class="btn btn-sm" style="background:rgba(23,58,122,0.08); color:var(--ccs-azul); border:1px solid rgba(23,58,122,0.2); font-size:10px;" onclick="toggleSkillEditor('${agentId}','${sname}')">&#9998; ${escapeHtml(sname)}</button>`;
         }
         html += `</div>`;
 
@@ -1514,9 +1514,9 @@ async function loadAgents() {
           const skillContent = skillContents[skillName] || '';
           html += `<div id="skillEditor_${agentId}_${skillName}" style="display:none; margin-bottom:12px; padding:12px; background:var(--bg-base); border-radius:8px; border:1px solid var(--border);">`;
           html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">`;
-          html += `<div style="font-size:11px; font-weight:700; color:var(--ccce-azul);">${escapeHtml(skillName)}.md</div>`;
+          html += `<div style="font-size:11px; font-weight:700; color:var(--ccs-azul);">${escapeHtml(skillName)}.md</div>`;
           html += `<div style="display:flex; gap:6px;">`;
-          html += `<button class="btn btn-sm" style="background:var(--ccce-azul); color:#fff; font-size:10px; padding:3px 10px;" onclick="saveSkillContent('${agentId}','${skillName}')">Guardar</button>`;
+          html += `<button class="btn btn-sm" style="background:var(--ccs-azul); color:#fff; font-size:10px; padding:3px 10px;" onclick="saveSkillContent('${agentId}','${skillName}')">Guardar</button>`;
           html += `<button class="btn btn-sm" style="font-size:10px; padding:3px 10px;" onclick="toggleSkillEditor('${agentId}','${skillName}')">Cerrar</button>`;
           html += `</div></div>`;
           html += `<textarea id="skill_${agentId}_${skillName}" style="min-height:200px; font-size:11px; font-family:monospace; line-height:1.5; padding:8px;" placeholder="Escribe el contenido del skill...">${escapeHtml(skillContent)}</textarea>`;
@@ -1638,9 +1638,9 @@ async function loadTokenStats() {
         <div class="stat-label">Promedio/Solicitud</div>
         <div class="stat-value">${stats.total_requests ? _formatNumber(Math.round(stats.total_tokens / stats.total_requests)) : '0'}</div>
       </div>
-      <div class="stat-card" style="border-left:3px solid var(--ccce-verde);">
+      <div class="stat-card" style="border-left:3px solid var(--ccs-verde);">
         <div class="stat-label">Ahorro estimado (vs GPT-4)</div>
-        <div class="stat-value" style="color:var(--ccce-verde);">$${estimatedSaving.toFixed(2)} USD</div>
+        <div class="stat-value" style="color:var(--ccs-verde);">$${estimatedSaving.toFixed(2)} USD</div>
       </div>
     `;
 
@@ -1676,7 +1676,7 @@ async function loadTokenStats() {
       tableHtml = `
         <div style="margin-top:20px;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-            <h4 style="margin:0; font-size:14px; color:var(--ccce-azul-oscuro);"><i class="fas fa-list"></i> Registro de Actividad</h4>
+            <h4 style="margin:0; font-size:14px; color:var(--ccs-azul-oscuro);"><i class="fas fa-list"></i> Registro de Actividad</h4>
             <span style="font-size:11px; color:var(--text-muted);">${entries.length} entradas</span>
           </div>
           <div style="overflow-x:auto; border:1px solid var(--border); border-radius:8px;">
@@ -1695,11 +1695,11 @@ async function loadTokenStats() {
                 ${entries.slice(0, 50).map(e => `
                   <tr style="border-bottom:1px solid var(--border);">
                     <td style="padding:6px 10px; color:var(--text-muted);">${e.timestamp ? new Date(e.timestamp).toLocaleString('es-CL', {hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '-'}</td>
-                    <td style="padding:6px 10px; font-weight:600; color:var(--ccce-azul);">${escapeHtml((e.agent_id || '').replace(/_/g, ' '))}</td>
+                    <td style="padding:6px 10px; font-weight:600; color:var(--ccs-azul);">${escapeHtml((e.agent_id || '').replace(/_/g, ' '))}</td>
                     <td style="padding:6px 10px;">${escapeHtml(e.task || '')}</td>
                     <td style="padding:6px 10px; color:var(--text-muted);">${escapeHtml(e.model || '')}</td>
                     <td style="padding:6px 10px; text-align:right;">${_formatLatency(e.latency_ms)}</td>
-                    <td style="padding:6px 10px; text-align:center;">${e.success ? '<span style="color:var(--ccce-verde);">\u2713</span>' : '<span style="color:#EF4444;">\u2717</span>'}</td>
+                    <td style="padding:6px 10px; text-align:center;">${e.success ? '<span style="color:var(--ccs-verde);">\u2713</span>' : '<span style="color:#EF4444;">\u2717</span>'}</td>
                   </tr>
                 `).join('')}
               </tbody>

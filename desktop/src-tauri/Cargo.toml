@@ -1,8 +1,8 @@
 [package]
 name = "smartcaja"
 version = "2.0.0"
-description = "SmartCaja — gestión de flujo de caja inteligente con IA local para PYMEs, de la Cámara Colombiana de Comercio Electrónico (CCCE)."
-authors = ["Cámara Colombiana de Comercio Electrónico (CCCE)"]
+description = "SmartCaja — gestión de flujo de caja inteligente con IA local para PYMEs, de la Cámara de Comercio de Santiago."
+authors = ["Cámara de Comercio de Santiago"]
 edition = "2021"
 rust-version = "1.77"
 

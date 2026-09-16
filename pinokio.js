@@ -9,7 +9,7 @@
  */
 module.exports = {
   title: "SmartCaja",
-  description: "Herramienta de flujo de caja inteligente con IA local para PYMEs — Cámara Colombiana de Comercio Electrónico (CCCE)",
+  description: "Herramienta de flujo de caja inteligente con IA local para PYMEs — Cámara de Comercio de Santiago (CCS)",
   icon: "icon.png",
   menu: async (kernel, info) => {
     // Verificar si el plugin está instalado (venv creado)

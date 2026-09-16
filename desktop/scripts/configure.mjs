@@ -7,7 +7,7 @@
 //   - src-tauri/Cargo.toml (name/description/bin)
 //   - src-tauri/capabilities/default.json
 //   - package.json (npm name/description)
-//   - ui/index.html (splash), ui/ccce-theme.css, ui/accent.css
+//   - ui/index.html (splash), ui/ccs-theme.css, ui/accent.css
 //
 // Se ejecuta automáticamente antes de 'npm run build' / 'npm run dev'.
 // ============================================================
@@ -26,12 +26,13 @@ function req(name) {
 }
 
 const productName = req("productName");
+const publisher = cfg.publisher || "Cámara de Comercio de Santiago";
 const version = cfg.version || "1.0.0";
 const identifier = req("identifier");
 const dataDirName = req("dataDirName");
 const accent = cfg.accent || "#F4C10E";
 
-/** Identificador Rust/npm estable (co.org.ccce.smartgastos → smartgastos). */
+/** Identificador Rust/npm estable (co.org.ccs.smartgastos → smartgastos). */
 function cargoPackageName() {
   if (cfg.cargoPackageName) return String(cfg.cargoPackageName).toLowerCase();
   const last = identifier.split(".").pop() || "smartapp";
@@ -140,7 +141,7 @@ const cargoToml = `[package]
 name = "${pkg}"
 version = "${version}"
 description = "${cargoDescription.replace(/"/g, '\\"')}"
-authors = ["Cámara Colombiana de Comercio Electrónico (CCCE)"]
+authors = ["${publisher.replace(/"/g, '\\"')}"]
 edition = "2021"
 rust-version = "1.77"
 
@@ -195,15 +196,15 @@ const pkgJsonPath = resolve(DESKTOP, "package.json");
 const pkgJson = JSON.parse(readFileSync(pkgJsonPath, "utf8"));
 pkgJson.name = `${pkg}-desktop`;
 pkgJson.version = version;
-pkgJson.description = `Instalador/app de escritorio nativo de ${productName} (Tauri) — CCCE`;
+pkgJson.description = `Instalador/app de escritorio nativo de ${productName} (Tauri) — ${publisher}`;
 writeFileSync(pkgJsonPath, JSON.stringify(pkgJson, null, 2) + "\n");
 
 // --- 6) Splash UI ---
 mkdirSync(resolve(DESKTOP, "ui"), { recursive: true });
-copyFileSync(resolve(DESKTOP, "brand/ccce-theme.css"), resolve(DESKTOP, "ui/ccce-theme.css"));
+copyFileSync(resolve(DESKTOP, "brand/ccs-theme.css"), resolve(DESKTOP, "ui/ccs-theme.css"));
 writeFileSync(
   resolve(DESKTOP, "ui/accent.css"),
-  `/* Generado por configure.mjs — acento por-herramienta */\n:root { --ccce-accent: ${accent}; }\n`
+  `/* Generado por configure.mjs — acento por-herramienta */\n:root { --ccs-accent: ${accent}; }\n`
 );
 
 let logoHtml = "";
@@ -211,7 +212,6 @@ const logoRel = cfg.splashLogo || "../icon.png";
 const logoCandidates = [
   resolve(DESKTOP, logoRel),
   resolve(DESKTOP, "..", "icon.png"),
-  resolve(DESKTOP, "brand", "isotipo-ccce.png"),
 ];
 const logoSrc = logoCandidates.find((p) => existsSync(p));
 if (logoSrc) {
@@ -224,23 +224,20 @@ const splashHtml = splashTpl
   .replaceAll("{{PRODUCT_NAME}}", escapeHtml(productName))
   .replaceAll("{{BRAND_HTML}}", brandHtml(productName))
   .replaceAll("{{SPLASH_SUBTITLE}}", escapeHtml(splashSubtitle))
+  .replaceAll("{{PUBLISHER}}", escapeHtml(publisher))
   .replaceAll("{{LOGO_HTML}}", logoHtml);
 writeFileSync(resolve(DESKTOP, "ui/index.html"), splashHtml);
 
-// --- 7) Cargo.lock: alinear nombre del paquete si cambió ---
+// --- 7) Cargo.lock: alinear el paquete raíz si cambió ---
 const lockPath = resolve(DESKTOP, "src-tauri/Cargo.lock");
 try {
   let lock = readFileSync(lockPath, "utf8");
-  const lockNameRe = /^name = "([^"]+)"$/m;
-  if (lock.includes('name = "smartcaja"') && pkg !== "smartcaja") {
-    lock = lock.replaceAll('name = "smartcaja"', `name = "${pkg}"`);
+  const rootPackageName =
+    /name = "(smartcaja|smartgastos|smartredes)"\nversion = "[^"]+"\ndependencies = \[/.exec(lock)?.[1];
+  const currentPackage = rootPackageName;
+  if (currentPackage && currentPackage !== pkg) {
+    lock = lock.replace(`name = "${currentPackage}"`, `name = "${pkg}"`);
     writeFileSync(lockPath, lock);
-  } else if (lock.includes(`name = "${pkg}"`) === false && lockNameRe.test(lock)) {
-    const firstPkg = lock.match(lockNameRe);
-    if (firstPkg && firstPkg[1] !== pkg) {
-      lock = lock.replaceAll(`name = "${firstPkg[1]}"`, `name = "${pkg}"`);
-      writeFileSync(lockPath, lock);
-    }
   }
 } catch {
   // lock se regenerará en el primer cargo build

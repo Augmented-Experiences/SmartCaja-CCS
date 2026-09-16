@@ -207,8 +207,8 @@ Write-Host "==> Installing build deps from $Req (+ PyInstaller)"
 & cmd /c "$Py -m pip install --quiet -r $Req pyinstaller"
 
 # PyInstaller a carpeta TEMP evita bloqueo en desktop/backend/dist/backend.exe
-$DistStaging = Join-Path $env:TEMP ("ccce-backend-dist-" + [Guid]::NewGuid().ToString("N").Substring(0, 10))
-$WorkStaging = Join-Path $env:TEMP ("ccce-backend-work-" + [Guid]::NewGuid().ToString("N").Substring(0, 10))
+$DistStaging = Join-Path $env:TEMP ("ccs-backend-dist-" + [Guid]::NewGuid().ToString("N").Substring(0, 10))
+$WorkStaging = Join-Path $env:TEMP ("ccs-backend-work-" + [Guid]::NewGuid().ToString("N").Substring(0, 10))
 New-Item -ItemType Directory -Force -Path $DistStaging | Out-Null
 New-Item -ItemType Directory -Force -Path $WorkStaging | Out-Null
 

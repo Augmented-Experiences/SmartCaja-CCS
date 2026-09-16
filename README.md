@@ -1,6 +1,6 @@
 # SmartCaja v2.0
 
-Herramienta de flujo de caja inteligente con IA local para PYMEs, desarrollada como plugin para [Pinokio](https://pinokio.computer). Utiliza agentes conversacionales basados en **Ollama** y modelos **Meta Llama** para crear, analizar y proyectar flujos de caja de manera completamente offline. Un producto de la **Cámara Colombiana de Comercio Electrónico (CCCE)**.
+Herramienta de flujo de caja inteligente con IA local para PYMEs, desarrollada como plugin para [Pinokio](https://pinokio.computer). Utiliza agentes conversacionales basados en **Ollama** y modelos **Meta Llama** para crear, analizar y proyectar flujos de caja de manera completamente offline. Un producto de la **Cámara de Comercio de Santiago (CCS)**.
 
 ## Novedades v2.0
 
@@ -199,4 +199,4 @@ MIT License
 
 ## Créditos
 
-Desarrollado para la **Cámara Colombiana de Comercio Electrónico (CCCE)** como parte del programa de digitalización de PYMEs con inteligencia artificial local.
+Desarrollado para la **Cámara de Comercio de Santiago (CCS)** como parte del programa de digitalización de PYMEs con inteligencia artificial local.

@@ -2,7 +2,7 @@
   "name": "smartcaja-desktop",
   "version": "2.0.0",
   "private": true,
-  "description": "Instalador/app de escritorio nativo de SmartCaja (Tauri) — CCCE",
+  "description": "Instalador/app de escritorio nativo de SmartCaja (Tauri) — Cámara de Comercio de Santiago",
   "scripts": {
     "tauri": "tauri",
     "configure": "node scripts/configure.mjs",
