@@ -6,8 +6,8 @@
   "scripts": {
     "tauri": "tauri",
     "configure": "node scripts/configure.mjs",
-    "icon": "tauri icon ../icon.png",
-    "build": "node scripts/configure.mjs && tauri build",
+    "icon": "tauri icon brand/ccs-mark.png",
+    "build": "node scripts/configure.mjs && node scripts/tauri-build.mjs",
     "dev": "node scripts/configure.mjs && tauri dev"
   },
   "devDependencies": {

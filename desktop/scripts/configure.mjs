@@ -11,7 +11,8 @@
 //
 // Se ejecuta automáticamente antes de 'npm run build' / 'npm run dev'.
 // ============================================================
-import { readFileSync, writeFileSync, copyFileSync, mkdirSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, copyFileSync, mkdirSync, existsSync, rmSync } from "node:fs";
+import { execSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -73,6 +74,65 @@ function bundleTargetsForHost() {
 }
 
 const bundleTargets = bundleTargetsForHost();
+
+function rustHostTriple() {
+  try {
+    const out = execSync("rustc -vV", {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const line = out.split("\n").find((l) => l.startsWith("host: "));
+    return line ? line.slice("host: ".length).trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+function expectedSidecarRelative() {
+  const triple = rustHostTriple();
+  if (!triple) return null;
+  const ext = process.platform === "win32" ? ".exe" : "";
+  return `src-tauri/binaries/backend-${triple}${ext}`;
+}
+
+function assertSidecarForTauri() {
+  const rel = expectedSidecarRelative();
+  if (!rel) {
+    console.error("");
+    console.error("ERROR: no se pudo obtener el target de Rust (rustc -vV).");
+    console.error("       Instale Rust y reinicie la terminal: rustup default stable-msvc");
+    process.exit(1);
+  }
+  const full = resolve(DESKTOP, rel);
+  if (existsSync(full)) {
+    console.log(`configure.mjs: sidecar OK (${rel.replace(/\\/g, "/")})`);
+    return;
+  }
+  mkdirSync(resolve(DESKTOP, "src-tauri/binaries"), { recursive: true });
+  console.error("");
+  console.error("ERROR: Falta el sidecar del backend para Tauri (bundle.externalBin).");
+  console.error("");
+  console.error(`  Archivo esperado:`);
+  console.error(`    ${rel}`);
+  console.error("");
+  console.error("  Genérelo antes de npm run build (PyInstaller + copia a binaries/):");
+  if (process.platform === "win32") {
+    console.error(
+      "    powershell -ExecutionPolicy Bypass -File desktop\\scripts\\build-backend.ps1"
+    );
+    console.error("  Para MSI/NSIS en un solo paso:");
+    console.error(
+      "    powershell -ExecutionPolicy Bypass -File desktop\\scripts\\build-backend.ps1 -Installer"
+    );
+  } else {
+    console.error("    ./desktop/scripts/build-backend.sh");
+  }
+  console.error("");
+  console.error(
+    "  Sin ese binario, tauri-build falla al empaquetar externalBin: binaries/backend."
+  );
+  process.exit(1);
+}
 
 // --- 1) tauri.conf.json ---
 const tauriConf = {
@@ -171,9 +231,8 @@ strip = true
 `;
 writeFileSync(resolve(DESKTOP, "src-tauri/Cargo.toml"), cargoToml);
 
-// --- 4) capabilities/default.json ---
+// --- 4) capabilities/default.json (sin $schema: gen/ no existe hasta el primer build) ---
 const capabilities = {
-  $schema: "../gen/schemas/desktop-schema.json",
   identifier: "default",
   description: `Permisos base para la ventana principal de ${productName}.`,
   windows: ["main"],
@@ -209,6 +268,14 @@ writeFileSync(
   `/* Generado por configure.mjs — acento por-herramienta */\n:root { --ccs-accent: ${accent}; }\n`
 );
 
+const favSrc = [
+  resolve(DESKTOP, "..", "app", "favicon.ico"),
+  resolve(DESKTOP, "src-tauri", "icons", "icon.ico"),
+].find((p) => existsSync(p));
+if (favSrc) {
+  copyFileSync(favSrc, resolve(DESKTOP, "ui/favicon.ico"));
+}
+
 let logoHtml = "";
 const markRel = cfg.splashMark || "../icon.png";
 const markCandidates = [
@@ -243,6 +310,45 @@ const splashHtml = splashTpl
   .replaceAll("{{LOGO_HTML}}", logoHtml);
 writeFileSync(resolve(DESKTOP, "ui/index.html"), splashHtml);
 
+// One splash logo only: official white CCS mark. Assets may have already
+// copied splash-mark / color wordmark above; overwrite template + index.
+{
+  const canonicalTplPath = resolve(DESKTOP, "brand/splash.template.html");
+  const splashTplPath = resolve(DESKTOP, "ui/splash.template.html");
+  if (existsSync(canonicalTplPath)) {
+    copyFileSync(canonicalTplPath, splashTplPath);
+  } else if (existsSync(splashTplPath)) {
+    let t = readFileSync(splashTplPath, "utf8");
+    t = t.replace(/<img[^>]*splash-mark[^>]*>\s*/gi, "");
+    t = t.replace(/\.splash-mark\s*\{[^}]*\}/g, "");
+    t = t.replace(
+      /\.splash-logo\s*\{[^}]*\}/,
+      ".splash-logo { height: 64px; width: auto; max-width: min(280px, 70vw); object-fit: contain; display: block; }"
+    );
+    writeFileSync(splashTplPath, t);
+  }
+  const staleMark = resolve(DESKTOP, "ui/splash-mark.png");
+  if (existsSync(staleMark)) {
+    rmSync(staleMark, { force: true });
+  }
+  let logoHtmlOne = "";
+  const whitePng = resolve(DESKTOP, "brand/logo-ccs-white.png");
+  if (existsSync(whitePng)) {
+    copyFileSync(whitePng, resolve(DESKTOP, "ui/splash-logo.png"));
+    logoHtmlOne = `<img class="splash-logo" src="splash-logo.png" alt="${escapeHtml(productName)}" />\n  `;
+  }
+  const tplOne = readFileSync(splashTplPath, "utf8");
+  const htmlOne = tplOne
+    .replaceAll("{{PRODUCT_NAME}}", escapeHtml(productName))
+    .replaceAll("{{BRAND_HTML}}", brandHtml(productName))
+    .replaceAll("{{SPLASH_SUBTITLE}}", escapeHtml(splashSubtitle))
+    .replaceAll("{{PUBLISHER}}", escapeHtml(publisher))
+    .replaceAll("{{LOGO_HTML}}", logoHtmlOne)
+    .replace(/<img[^>]*splash-mark[^>]*>\s*/gi, "");
+  writeFileSync(resolve(DESKTOP, "ui/index.html"), htmlOne);
+}
+
+
 // --- 7) Cargo.lock: alinear el paquete raíz si cambió ---
 const lockPath = resolve(DESKTOP, "src-tauri/Cargo.lock");
 try {
@@ -261,3 +367,5 @@ try {
 console.log(
   `configure.mjs: '${productName}' (${pkg}) - accent ${accent}, dataDir ${dataDirName}, bundles [${bundleTargets.join(", ")}] (${process.platform})`
 );
+
+assertSidecarForTauri();

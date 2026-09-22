@@ -39,7 +39,8 @@ from app import (
     app, save_json, load_json, _extract_json_from_llm,
     _fix_encoding, normalize_cashflow, _normalize_month, _to_num,
     _sanitize_id, _sanitize_filename, _check_rate_limit, _rate_limit_store,
-    DATA_DIR, DEFAULTS_DIR, MAX_MESSAGE_LENGTH, MAX_COMPANY_NAME_LENGTH, MAX_MONTHS
+    DATA_DIR, DEFAULTS_DIR, MAX_MESSAGE_LENGTH, MAX_COMPANY_NAME_LENGTH, MAX_MONTHS,
+    resolve_ollama_model, call_ollama_chat, ensure_ollama_running,
 )
 
 client = TestClient(app)
@@ -539,6 +540,91 @@ class TestChatValidation(unittest.TestCase):
         self.assertTrue(has_coercion,
                       "Frontend o backend debe manejar session_id null "
                       "para evitar enviar null a Pydantic")
+
+
+
+# =====================================================================
+# Ollama: usar el modelo que el launcher ya bajó (no 503 en interview)
+# =====================================================================
+class TestOllamaModelFallback(unittest.TestCase):
+
+    def test_resolve_uses_pulled_model_when_agent_model_missing(self):
+        tags = MagicMock()
+        tags.status_code = 200
+        tags.json.return_value = {"models": [{"name": "llama3.1:8b"}]}
+        with patch("app.http_requests.get", return_value=tags):
+            with patch.dict(os.environ, {"OLLAMA_MODEL": "llama3.1:8b", "RUN_BY_TAURI": "1"}):
+                self.assertEqual(resolve_ollama_model("llama3.2:3b"), "llama3.1:8b")
+
+    def test_resolve_keeps_requested_when_present(self):
+        tags = MagicMock()
+        tags.status_code = 200
+        tags.json.return_value = {
+            "models": [{"name": "llama3.2:3b"}, {"name": "llama3.1:8b"}]
+        }
+        with patch("app.http_requests.get", return_value=tags):
+            self.assertEqual(resolve_ollama_model("llama3.2:3b"), "llama3.2:3b")
+
+    @patch("app.http_requests.post")
+    @patch("app.http_requests.get")
+    def test_call_ollama_chat_uses_ram_model_instead_of_503(self, mock_get, mock_post):
+        tags = MagicMock()
+        tags.status_code = 200
+        tags.json.return_value = {"models": [{"name": "llama3.1:8b"}]}
+        mock_get.return_value = tags
+        chat = MagicMock()
+        chat.status_code = 200
+        chat.encoding = "utf-8"
+        chat.json.return_value = {
+            "message": {"content": "hola"},
+            "eval_count": 1,
+            "prompt_eval_count": 1,
+        }
+        chat.elapsed.total_seconds.return_value = 0.05
+        chat.raise_for_status = MagicMock()
+        mock_post.return_value = chat
+        with patch.dict(os.environ, {"OLLAMA_MODEL": "llama3.1:8b", "RUN_BY_TAURI": "1"}):
+            text = call_ollama_chat("llama3.2:3b", [{"role": "user", "content": "hi"}])
+        self.assertEqual(text, "hola")
+        self.assertEqual(mock_post.call_args.kwargs["json"]["model"], "llama3.1:8b")
+
+    @patch("app.subprocess.Popen")
+    @patch("app.http_requests.get")
+    def test_tauri_ensure_does_not_spawn_ollama(self, mock_get, mock_popen):
+        tags = MagicMock()
+        tags.status_code = 200
+        mock_get.return_value = tags
+        with patch.dict(os.environ, {"RUN_BY_TAURI": "1"}):
+            self.assertTrue(ensure_ollama_running())
+        mock_popen.assert_not_called()
+
+    @patch("app.subprocess.Popen")
+    @patch("app.time.sleep")
+    @patch("app.http_requests.get", side_effect=Exception("down"))
+    def test_tauri_ensure_does_not_spawn_when_tags_fail(self, mock_get, mock_sleep, mock_popen):
+        with patch.dict(os.environ, {"RUN_BY_TAURI": "1"}):
+            self.assertFalse(ensure_ollama_running())
+        mock_popen.assert_not_called()
+
+
+class TestSplashSingleWhiteLogo(unittest.TestCase):
+
+    def test_splash_single_white_ccs_logo(self):
+        """Un solo logo CCS blanco; configure nunca emite splash-mark.png."""
+        self.assertTrue((ROOT / "desktop" / "brand" / "logo-ccs-white.png").exists())
+        canonical = (ROOT / "desktop" / "brand" / "splash.template.html").read_text(encoding="utf-8")
+        self.assertNotIn("splash-mark.png", canonical)
+        self.assertNotIn(".splash-mark", canonical)
+        self.assertNotIn('class="splash-mark"', canonical)
+        self.assertIn("splash-logo", canonical)
+        self.assertIn("{{LOGO_HTML}}", canonical)
+        cfg_js = (ROOT / "desktop" / "scripts" / "configure.mjs").read_text(encoding="utf-8")
+        self.assertIn("logo-ccs-white.png", cfg_js)
+        self.assertIn("rmSync", cfg_js)
+        self.assertIn("brand/splash.template.html", cfg_js)
+        rust = (ROOT / "desktop" / "src-tauri" / "src" / "main.rs").read_text(encoding="utf-8")
+        self.assertIn('.env("OLLAMA_MODEL"', rust)
+        self.assertIn("active_model.txt", rust)
 
 
 # =====================================================================
@@ -1474,6 +1560,18 @@ class TestSecurityAdvanced(unittest.TestCase):
         content = (ROOT / "server" / "app.py").read_text(encoding="utf-8")
         self.assertIn("RUN_BY_TAURI", content)
         self.assertIn("portable", content.lower())
+
+        self.assertIn("def resolve_ollama_model", content)
+        self.assertIn("OLLAMA_MODEL", content)
+
+    def test_sidecar_passes_ollama_model_env(self):
+        rust = (ROOT / "desktop" / "src-tauri" / "src" / "main.rs").read_text(encoding="utf-8")
+        self.assertIn('.env("OLLAMA_MODEL"', rust)
+        self.assertIn("active_model.txt", rust)
+        self.assertIn("let mut cmd = hidden_command", rust)
+        self.assertIn("let ollama = ollama_state.0.lock().unwrap().take();", rust)
+        self.assertNotIn("run(hidden_command(", rust)
+
 
     def test_frontend_uses_escape_html(self):
         # La lógica de escapeHtml vive en app.js (no en index.html)

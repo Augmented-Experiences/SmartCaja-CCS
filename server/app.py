@@ -361,12 +361,31 @@ def _extract_json_from_llm(text: str):
     return None
 
 def ensure_ollama_running() -> bool:
-    """Verifica que Ollama esté corriendo; intenta iniciarlo si no lo está."""
-    try:
-        r = http_requests.get(f"{OLLAMA_URL}/api/tags", timeout=3)
-        return r.status_code == 200
-    except Exception:
-        pass
+    """Verifica que Ollama responda en OLLAMA_URL.
+
+    Con RUN_BY_TAURI=1 el launcher ya arrancó serve (portable o PATH).
+    No spawnear otro ollama.exe: solo reintentar /api/tags.
+    """
+    attempts = 10 if os.environ.get("RUN_BY_TAURI") == "1" else 1
+    for _ in range(attempts):
+        try:
+            r = http_requests.get(f"{OLLAMA_URL}/api/tags", timeout=3)
+            if r.status_code == 200:
+                return True
+        except Exception:
+            pass
+        if os.environ.get("RUN_BY_TAURI") == "1":
+            time.sleep(0.5)
+            continue
+        break
+
+    if os.environ.get("RUN_BY_TAURI") == "1":
+        logger.warning(
+            "RUN_BY_TAURI=1: Ollama no responde en %s (el launcher deberia haberlo arrancado)",
+            OLLAMA_URL,
+        )
+        return False
+
     try:
         logger.info("Ollama no responde. Intentando iniciar...")
         if sys.platform == "win32":
@@ -399,6 +418,84 @@ def ensure_ollama_running() -> bool:
     except Exception as e:
         logger.error(f"Error al intentar iniciar Ollama: {e}")
         return False
+
+def _ollama_model_names() -> list:
+    try:
+        r = http_requests.get(f"{OLLAMA_URL}/api/tags", timeout=5)
+        if r.status_code != 200:
+            logger.warning("/api/tags HTTP %s", r.status_code)
+            return []
+        return [m.get("name") for m in r.json().get("models", []) if m.get("name")]
+    except Exception as e:
+        logger.warning("No se pudo leer %s/api/tags: %s", OLLAMA_URL, e)
+        return []
+
+
+def _model_name_matches(have: str, want: str) -> bool:
+    if not have or not want:
+        return False
+    if have == want:
+        return True
+    if have.startswith(want + "-") or have.startswith(want + ":"):
+        return True
+    if want.startswith(have + "-"):
+        return True
+    return False
+
+
+def resolve_ollama_model(requested: str) -> str:
+    """Usa el modelo pedido si está en /api/tags; si no, el que el launcher ya bajó.
+
+    Bug Oscar: splash bajó llama3.1:8b (RAM) y interview pedía llama3.2:3b → POST
+    /api/chat 404 → 503, con /api/health y /api/readiness en 200.
+    """
+    names = _ollama_model_names()
+    env_model = (
+        os.environ.get("OLLAMA_MODEL")
+        or os.environ.get("OLLAMA_DEFAULT_MODEL")
+        or ""
+    ).strip()
+    if not env_model:
+        marker = DATA_DIR / "ollama" / "active_model.txt"
+        try:
+            if marker.is_file():
+                env_model = marker.read_text(encoding="utf-8").strip()
+        except Exception:
+            pass
+    want = (requested or "").strip()
+
+    if want:
+        for n in names:
+            if n == want:
+                return n
+        for n in names:
+            if _model_name_matches(n, want):
+                logger.info("Usando modelo %s (pedido %s)", n, want)
+                return n
+
+    if env_model:
+        for n in names:
+            if n == env_model or _model_name_matches(n, env_model):
+                if want and want != n:
+                    logger.warning(
+                        "Modelo de agente %s no esta en /api/tags; usando %s (OLLAMA_MODEL)",
+                        want,
+                        n,
+                    )
+                return n
+        if not names:
+            logger.warning("/api/tags vacio; intentando modelo del launcher %s", env_model)
+            return env_model
+
+    if names:
+        logger.warning(
+            "Modelo de agente %s no esta; usando %s (presente en /api/tags)",
+            want or "(vacio)",
+            names[0],
+        )
+        return names[0]
+
+    return want or env_model or "llama3.2:3b"
 
 _pull_status: dict = {}
 _pull_status_lock = threading.Lock()
@@ -443,6 +540,8 @@ def call_ollama(model: str, system_prompt: str, user_message: str,
         timeout = _get_timeout("default")
     if not ensure_ollama_running():
         raise HTTPException(503, "Ollama no está disponible. Verifica que esté instalado y ejecutándose.")
+    model = resolve_ollama_model(model)
+    logger.info("call_ollama model=%s url=%s", model, OLLAMA_URL)
     try:
         resp = http_requests.post(
             f"{OLLAMA_URL}/api/chat",
@@ -459,6 +558,11 @@ def call_ollama(model: str, system_prompt: str, user_message: str,
         )
         resp.encoding = "utf-8"
         if resp.status_code == 404:
+            logger.warning(
+                "Ollama /api/chat 404 model=%s tags=%s",
+                model,
+                _ollama_model_names(),
+            )
             _start_pull_background(model)
             raise HTTPException(503, f"Modelo {model} no disponible. Descarga iniciada.")
         resp.raise_for_status()
@@ -501,6 +605,8 @@ def call_ollama(model: str, system_prompt: str, user_message: str,
         raise HTTPException(503, "No se puede conectar con Ollama. Verifica que esté ejecutándose.")
     except http_requests.exceptions.Timeout:
         raise HTTPException(504, "Timeout al comunicarse con Ollama. Intenta de nuevo.")
+    except HTTPException:
+        raise
 
 def call_ollama_chat(model: str, messages: list, temperature: float = 0.7, timeout: int = None) -> str:
     """Llamada a Ollama con historial de mensajes completo."""
@@ -508,6 +614,8 @@ def call_ollama_chat(model: str, messages: list, temperature: float = 0.7, timeo
         timeout = _get_timeout("default")
     if not ensure_ollama_running():
         raise HTTPException(503, "Ollama no está disponible.")
+    model = resolve_ollama_model(model)
+    logger.info("call_ollama_chat model=%s url=%s", model, OLLAMA_URL)
     try:
         resp = http_requests.post(
             f"{OLLAMA_URL}/api/chat",
@@ -521,6 +629,11 @@ def call_ollama_chat(model: str, messages: list, temperature: float = 0.7, timeo
         )
         resp.encoding = "utf-8"
         if resp.status_code == 404:
+            logger.warning(
+                "Ollama /api/chat 404 model=%s tags=%s",
+                model,
+                _ollama_model_names(),
+            )
             _start_pull_background(model)
             raise HTTPException(503, f"Modelo {model} no disponible. Descarga iniciada.")
         resp.raise_for_status()
@@ -568,6 +681,8 @@ def call_ollama_chat(model: str, messages: list, temperature: float = 0.7, timeo
         raise HTTPException(503, "No se puede conectar con Ollama.")
     except http_requests.exceptions.Timeout:
         raise HTTPException(504, "Timeout al comunicarse con Ollama.")
+    except HTTPException:
+        raise
 
 # ---------------------------------------------------------------------------
 # Carga de agentes y prompts
@@ -2737,7 +2852,12 @@ async def startup():
             if not dst.exists():
                 shutil.copy2(str(f), str(dst))
     if os.environ.get("RUN_BY_TAURI") == "1":
-        logger.info("RUN_BY_TAURI=1: Ollama lo gestiona el launcher (portable o sistema).")
+        logger.info(
+            "RUN_BY_TAURI=1: Ollama lo gestiona el launcher (portable o sistema). "
+            "OLLAMA_URL=%s OLLAMA_MODEL=%s",
+            OLLAMA_URL,
+            os.environ.get("OLLAMA_MODEL") or os.environ.get("OLLAMA_DEFAULT_MODEL") or "",
+        )
     else:
         threading.Thread(target=ensure_ollama_running, daemon=True).start()
     logger.info(f"SmartCaja v2.0.0 iniciado en puerto {PORT} ({sys.platform})")
