@@ -29,11 +29,43 @@ const OLLAMA_PORT: u16 = 11434;
 const OLLAMA_HOST: &str = "127.0.0.1:11434";
 const OLLAMA_API: &str = "http://127.0.0.1:11434";
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct Tier {
     max_ram_gb: f64,
     model: String,
+    #[serde(default)]
+    extra_models: Vec<String>,
+    #[serde(default)]
+    id: String,
+    #[serde(default)]
+    label: String,
+}
+
+#[derive(serde::Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct AccessPolicy {
+    #[serde(default = "default_block_below_gb")]
+    block_below_gb: f64,
+    #[serde(default = "default_warn_below_gb")]
+    warn_below_gb: f64,
+}
+
+fn default_block_below_gb() -> f64 {
+    7.0
+}
+
+fn default_warn_below_gb() -> f64 {
+    13.0
+}
+
+impl Default for AccessPolicy {
+    fn default() -> Self {
+        Self {
+            block_below_gb: 7.0,
+            warn_below_gb: 13.0,
+        }
+    }
 }
 
 #[derive(serde::Deserialize)]
@@ -42,8 +74,12 @@ struct AppConfig {
     product_name: String,
     data_dir_name: String,
     ollama_tiers: Vec<Tier>,
+    /// Legacy. SmartCaja no baja extras globales: solo extraModels del tramo (vacío).
     #[serde(default)]
+    #[allow(dead_code)]
     extra_models: Vec<String>,
+    #[serde(default)]
+    access: AccessPolicy,
 }
 
 static APP_CONFIG_JSON: &str = include_str!("../appconfig.json");
@@ -1187,6 +1223,10 @@ fn wait_for_backend_ready(app: &tauri::AppHandle, port: u16, attempts: u32) -> b
 fn apply_backend_ready(app: &tauri::AppHandle, port: u16) {
     let url = backend_app_url(port);
     update_status(app, |s| {
+        if s.phase == "blocked" {
+            s.can_continue = false;
+            return;
+        }
         s.backend_url = Some(url);
         s.can_continue = true;
         s.backend_error = None;
@@ -1235,20 +1275,108 @@ fn navigate_main_to_backend(app: &tauri::AppHandle, port: u16) -> Result<(), Str
     Ok(())
 }
 
-fn model_for_ram() -> String {
+fn ram_gb() -> f64 {
     let mut sys = sysinfo::System::new();
     sys.refresh_memory();
-    let gb = sys.total_memory() as f64 / 1024.0 / 1024.0 / 1024.0;
+    sys.total_memory() as f64 / 1024.0 / 1024.0 / 1024.0
+}
+
+fn profile_for_ram() -> Tier {
+    let gb = ram_gb();
     let cfg = app_config();
+    let mut chosen = None;
     for t in &cfg.ollama_tiers {
         if t.max_ram_gb > 0.0 && gb < t.max_ram_gb {
-            return t.model.clone();
+            chosen = Some(t.clone());
+            break;
         }
     }
-    cfg.ollama_tiers
-        .last()
-        .map(|t| t.model.clone())
-        .unwrap_or_else(|| "llama3.2:3b".to_string())
+    let mut profile = chosen
+        .or_else(|| cfg.ollama_tiers.last().cloned())
+        .unwrap_or_else(|| Tier {
+            max_ram_gb: 0.0,
+            model: "llama3.2:3b".to_string(),
+            extra_models: Vec::new(),
+            id: "estandar".to_string(),
+            label: "Estándar".to_string(),
+        });
+    if profile.id.is_empty() {
+        profile.id = "auto".to_string();
+    }
+    if profile.label.is_empty() {
+        profile.label = profile.model.clone();
+    }
+    ollama_log(&format!(
+        "perfil {} ({:.1} GB RAM) modelo={} extras={:?}",
+        profile.label, gb, profile.model, profile.extra_models
+    ));
+    profile
+}
+
+#[allow(dead_code)]
+fn model_for_ram() -> String {
+    profile_for_ram().model
+}
+
+fn low_ram_override() -> bool {
+    for key in ["SMARTSUITE_ALLOW_LOW_RAM", "SMARTCAJA_ALLOW_LOW_RAM"] {
+        if let Ok(v) = std::env::var(key) {
+            let t = v.trim().to_ascii_lowercase();
+            if t == "1" || t == "true" || t == "yes" || t == "on" {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn ram_access_level(gb: f64) -> &'static str {
+    if low_ram_override() || gb <= 0.0 {
+        return "ok";
+    }
+    let access = &app_config().access;
+    let block_at = if access.block_below_gb > 0.0 {
+        access.block_below_gb
+    } else {
+        7.0
+    };
+    let warn_at = if access.warn_below_gb > 0.0 {
+        access.warn_below_gb
+    } else {
+        13.0
+    };
+    if gb < block_at {
+        "block"
+    } else if gb < warn_at {
+        "warn"
+    } else {
+        "ok"
+    }
+}
+
+fn blocked_ram_message(gb: f64) -> String {
+    format!(
+        "Este equipo no cumple el mínimo. Se midieron {:.1} GB de RAM y se necesitan al menos 8 GB.",
+        gb
+    )
+}
+
+fn persist_active_profile(profile: &Tier) {
+    let home = ollama_install_dir();
+    let _ = std::fs::create_dir_all(&home);
+    let _ = std::fs::write(home.join("active_model.txt"), format!("{}\n", profile.model));
+    let gb = ram_gb();
+    let payload = serde_json::json!({
+        "id": profile.id,
+        "label": profile.label,
+        "model": profile.model,
+        "extraModels": profile.extra_models,
+        "ramGb": gb,
+        "access": ram_access_level(gb),
+    });
+    if let Ok(text) = serde_json::to_string_pretty(&payload) {
+        let _ = std::fs::write(home.join("active_profile.json"), text);
+    }
 }
 
 fn pull_model_with_progress(app: &tauri::AppHandle, model: &str) -> bool {
@@ -1304,10 +1432,25 @@ fn pull_model_with_progress(app: &tauri::AppHandle, model: &str) -> bool {
 }
 
 fn finish_ollama_bootstrap(app: &tauri::AppHandle, backend_port: u16) {
-    ollama_log("== finish_ollama_bootstrap (post extra_models)");
+    ollama_log("== finish_ollama_bootstrap (post extra_models del perfil)");
+    {
+        let blocked = app.state::<AppStatus>().0.lock().unwrap().phase == "blocked";
+        if blocked {
+            update_status(app, |s| {
+                s.can_continue = false;
+                s.ollama_done = false;
+            });
+            return;
+        }
+    }
     let _ = try_mark_backend_ready(app, backend_port);
 
     update_status(app, |s| {
+        if s.phase == "blocked" {
+            s.can_continue = false;
+            s.ollama_done = false;
+            return;
+        }
         s.ollama_done = true;
         s.backend_error = None;
         if s.can_continue {
@@ -1388,27 +1531,31 @@ fn pull_required_models(app: &tauri::AppHandle) {
         ollama_log("Omitiendo pull: API Ollama no disponible");
         return;
     }
-    let model = model_for_ram();
+    let profile = profile_for_ram();
+    persist_active_profile(&profile);
     update_status(app, |s| {
         s.phase = "downloading".into();
-        s.message = format!("Descargando el modelo {} (solo la primera vez)...", model);
+        s.message = format!(
+            "Descargando el modelo {} (solo la primera vez)...",
+            profile.model
+        );
         s.percent = -1;
     });
-    if pull_model_with_progress(app, &model) {
-        let marker = ollama_install_dir().join("active_model.txt");
-        let _ = std::fs::create_dir_all(ollama_install_dir());
-        let _ = std::fs::write(&marker, &model);
+    if pull_model_with_progress(app, &profile.model) {
         ollama_log(&format!(
             "Modelo {} listo en /api/tags; chat debe usar este si el agente pide otro",
-            model
+            profile.model
         ));
         update_status(app, |s| {
-            s.message = format!("Modelo {} listo.", model);
+            s.message = format!("Modelo {} listo.", profile.model);
             s.percent = 100;
         });
     }
-
-    for extra in &app_config().extra_models {
+    ollama_log(&format!(
+        "Modelo activo (RAM): {} extras={:?}",
+        profile.model, profile.extra_models
+    ));
+    for extra in &profile.extra_models {
         update_status(app, |s| {
             s.phase = "downloading".into();
             s.message = format!("Descargando componente de IA {}...", extra);
@@ -1427,6 +1574,21 @@ fn pull_required_models(app: &tauri::AppHandle) {
 fn bootstrap_ollama(app: tauri::AppHandle, backend_port: u16) {
     std::thread::spawn(move || {
         if shutdown_requested(&app) {
+            return;
+        }
+        let gb = ram_gb();
+        let profile = profile_for_ram();
+        if ram_access_level(gb) == "block" {
+            persist_active_profile(&profile);
+            let msg = blocked_ram_message(gb);
+            ollama_log(&msg);
+            update_status(&app, |s| {
+                s.phase = "blocked".into();
+                s.message = msg;
+                s.percent = -1;
+                s.can_continue = false;
+                s.ollama_done = false;
+            });
             return;
         }
         update_status(&app, |s| {
@@ -1479,11 +1641,25 @@ fn main() {
 
             let data_dir = user_data_dir().to_string_lossy().to_string();
             let ollama_models = ollama_models_dir().to_string_lossy().to_string();
-            let ram_model = model_for_ram();
+            let ram_profile = profile_for_ram();
+            let ram_model = ram_profile.model.clone();
+            let ram_profile_id = ram_profile.id.clone();
+            persist_active_profile(&ram_profile);
+            if ram_access_level(ram_gb()) == "block" {
+                let msg = blocked_ram_message(ram_gb());
+                update_status(&handle, |s| {
+                    s.phase = "blocked".into();
+                    s.message = msg;
+                    s.percent = -1;
+                    s.can_continue = false;
+                    s.ollama_done = false;
+                });
+            }
             ollama_log(&format!(
-                "sidecar env OLLAMA_URL={} OLLAMA_MODEL={} (agentes deben usar este si su modelo no esta)",
+                "sidecar env OLLAMA_URL={} OLLAMA_MODEL={} OLLAMA_PROFILE={}",
                 OLLAMA_API,
-                ram_model
+                ram_model,
+                ram_profile_id
             ));
             let backend_state = app.state::<BackendState>();
             if backend_state.0.lock().unwrap().is_some() {
@@ -1500,6 +1676,7 @@ fn main() {
                     .env("OLLAMA_HOST", OLLAMA_HOST)
                     .env("OLLAMA_MODELS", ollama_models)
                     .env("OLLAMA_MODEL", ram_model)
+                    .env("OLLAMA_PROFILE", ram_profile_id)
                     .spawn()
                 {
                     Ok((mut rx, child)) => {
@@ -1589,6 +1766,10 @@ fn main() {
                         "ERROR: /api/health no respondio; sidecar caido (revise traceback en este log)",
                     );
                     update_status(&splash_handle, |s| {
+                        if s.phase == "blocked" {
+                            s.can_continue = false;
+                            return;
+                        }
                         s.phase = "loading-ui".into();
                         s.percent = -1;
                         s.message = "Cargando la aplicación...".into();

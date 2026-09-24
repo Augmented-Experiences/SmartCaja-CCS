@@ -563,7 +563,18 @@ class TestOllamaModelFallback(unittest.TestCase):
             "models": [{"name": "llama3.2:3b"}, {"name": "llama3.1:8b"}]
         }
         with patch("app.http_requests.get", return_value=tags):
-            self.assertEqual(resolve_ollama_model("llama3.2:3b"), "llama3.2:3b")
+            with patch.dict(os.environ, {"RUN_BY_TAURI": "0"}, clear=False):
+                self.assertEqual(resolve_ollama_model("llama3.2:3b"), "llama3.2:3b")
+
+    def test_desktop_prefers_launcher_profile_over_heavier_installed(self):
+        tags = MagicMock()
+        tags.status_code = 200
+        tags.json.return_value = {
+            "models": [{"name": "llama3.1:8b"}, {"name": "llama3.2:3b"}]
+        }
+        with patch("app.http_requests.get", return_value=tags):
+            with patch.dict(os.environ, {"OLLAMA_MODEL": "llama3.2:3b", "RUN_BY_TAURI": "1"}):
+                self.assertEqual(resolve_ollama_model("llama3.1:8b"), "llama3.2:3b")
 
     @patch("app.http_requests.post")
     @patch("app.http_requests.get")
@@ -627,6 +638,89 @@ class TestSplashSingleWhiteLogo(unittest.TestCase):
         self.assertIn("active_model.txt", rust)
 
 
+class TestSmartSuiteHardwareContract(unittest.TestCase):
+    """Un LLM por PC, umbrales 7/13/24, sin visión ni OCR."""
+
+    def test_config_tiers_and_access(self):
+        cfg = json.loads((ROOT / "desktop" / "smartsuite.config.json").read_text(encoding="utf-8"))
+        self.assertEqual(cfg.get("version"), "2.0.0")
+        access = cfg.get("access") or {}
+        self.assertEqual(access.get("blockBelowGb"), 7)
+        self.assertEqual(access.get("warnBelowGb"), 13)
+        tiers = cfg["ollama"]["tiers"]
+        self.assertEqual([t["maxRamGb"] for t in tiers], [7, 13, 24, 0])
+        self.assertEqual([t["id"] for t in tiers], ["liviano", "estandar", "completo", "maximo"])
+        self.assertEqual([t["model"] for t in tiers], [
+            "llama3.2:1b", "llama3.2:3b", "llama3.2:3b", "llama3.1:8b",
+        ])
+        for t in tiers:
+            self.assertEqual(t.get("extraModels"), [])
+
+    def test_appconfig_mirrors_contract(self):
+        cfg = json.loads((ROOT / "desktop" / "src-tauri" / "appconfig.json").read_text(encoding="utf-8"))
+        self.assertEqual(cfg.get("extraModels"), [])
+        self.assertEqual(cfg.get("access", {}).get("blockBelowGb"), 7)
+        self.assertEqual(cfg.get("access", {}).get("warnBelowGb"), 13)
+        for t in cfg["ollamaTiers"]:
+            self.assertEqual(t.get("extraModels"), [])
+            self.assertIn("id", t)
+            self.assertIn("label", t)
+
+    def test_configure_copies_profile_fields(self):
+        js = (ROOT / "desktop" / "scripts" / "configure.mjs").read_text(encoding="utf-8")
+        self.assertIn("extraModels", js)
+        self.assertIn("blockBelowGb", js)
+        self.assertIn("warnBelowGb", js)
+        self.assertIn("id: String(t.id", js)
+        self.assertIn("label: String(t.label", js)
+
+    def test_rust_blocks_and_pulls_profile_only(self):
+        rust = (ROOT / "desktop" / "src-tauri" / "src" / "main.rs").read_text(encoding="utf-8")
+        self.assertIn("fn profile_for_ram()", rust)
+        self.assertIn("fn persist_active_profile", rust)
+        self.assertIn('s.phase = "blocked".into()', rust)
+        self.assertIn(
+            "Este equipo no cumple el mínimo. Se midieron {:.1} GB de RAM y se necesitan al menos 8 GB.",
+            rust,
+        )
+        self.assertIn("SMARTCAJA_ALLOW_LOW_RAM", rust)
+        self.assertIn("SMARTSUITE_ALLOW_LOW_RAM", rust)
+        self.assertIn('if s.phase == "blocked"', rust)
+        self.assertIn("s.can_continue = false", rust)
+        self.assertIn("profile.extra_models", rust)
+
+    def test_splash_stays_on_blocked(self):
+        for rel in (
+            "desktop/brand/splash.template.html",
+            "desktop/ui/splash.template.html",
+            "desktop/ui/index.html",
+        ):
+            html = (ROOT / rel).read_text(encoding="utf-8")
+            self.assertIn("(s.phase || '') === 'blocked'", html)
+            self.assertIn("Este equipo no cumple el mínimo de 8 GB de RAM.", html)
+
+    def test_agents_ui_locks_profile_model(self):
+        js = (ROOT / "app" / "app.js").read_text(encoding="utf-8")
+        html = (ROOT / "app" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("Modelo del perfil", js)
+        self.assertIn("no disponible en este perfil", js)
+        self.assertIn("renderRamWarning", js)
+        self.assertIn("ramWarnBanner", html)
+        self.assertIn("Perfil Estándar", js)
+        self.assertIn("modelo compacto", js)
+        self.assertIn("Chrome o Teams", js)
+        self.assertIn("textos largos", js)
+        start = js.find("function renderRamWarning")
+        end = js.find("function showReadinessBanner")
+        warn = js[start:end] if start >= 0 and end > start else js
+        self.assertNotIn("boleta", warn.lower())
+        self.assertNotIn("pdf", warn.lower())
+        self.assertNotIn("rapidocr", warn.lower())
+        self.assertNotIn("moondream", warn.lower())
+        self.assertIn("payload = { system_prompt: promptEl.value }", js)
+        self.assertNotIn("payload.model =", js)
+
+
 # =====================================================================
 # AGENTES
 # =====================================================================
@@ -642,7 +736,11 @@ class TestAgentEndpoints(unittest.TestCase):
     def test_list_agents(self):
         response = client.get("/api/agents")
         self.assertEqual(response.status_code, 200)
-        self.assertGreater(len(response.json()["agents"]), 0)
+        agents = response.json()["agents"]
+        self.assertGreater(len(agents), 0)
+        self.assertEqual(agents[0]["model_label"], "Modelo del perfil")
+        self.assertEqual(agents[0]["vision"], "no disponible en este perfil")
+        self.assertTrue(agents[0]["model_locked"])
 
     def test_get_agent(self):
         response = client.get("/api/agents/financial_interviewer")
@@ -1567,9 +1665,12 @@ class TestSecurityAdvanced(unittest.TestCase):
     def test_sidecar_passes_ollama_model_env(self):
         rust = (ROOT / "desktop" / "src-tauri" / "src" / "main.rs").read_text(encoding="utf-8")
         self.assertIn('.env("OLLAMA_MODEL"', rust)
+        self.assertIn('.env("OLLAMA_PROFILE"', rust)
         self.assertIn("active_model.txt", rust)
+        self.assertIn("active_profile.json", rust)
         self.assertIn("let mut cmd = hidden_command", rust)
-        self.assertIn("let ollama = ollama_state.0.lock().unwrap().take();", rust)
+        self.assertIn("fn kill_ollama_child", rust)
+        self.assertIn("slot.take()", rust)
         self.assertNotIn("run(hidden_command(", rust)
 
 

@@ -20,18 +20,38 @@
   "ollama": {
     "tiers": [
       {
-        "maxRamGb": 6,
-        "model": "llama3.2:1b"
+        "maxRamGb": 7,
+        "id": "liviano",
+        "label": "Liviano",
+        "model": "llama3.2:1b",
+        "extraModels": []
       },
       {
-        "maxRamGb": 12,
-        "model": "llama3.2:3b"
+        "maxRamGb": 13,
+        "id": "estandar",
+        "label": "Estándar",
+        "model": "llama3.2:3b",
+        "extraModels": []
+      },
+      {
+        "maxRamGb": 24,
+        "id": "completo",
+        "label": "Completo",
+        "model": "llama3.2:3b",
+        "extraModels": []
       },
       {
         "maxRamGb": 0,
-        "model": "llama3.1:8b"
+        "id": "maximo",
+        "label": "Máximo",
+        "model": "llama3.1:8b",
+        "extraModels": []
       }
     ]
+  },
+  "access": {
+    "blockBelowGb": 7,
+    "warnBelowGb": 13
   },
   "publisher": "Cámara de Comercio de Santiago"
 }

@@ -443,26 +443,52 @@ def _model_name_matches(have: str, want: str) -> bool:
     return False
 
 
-def resolve_ollama_model(requested: str) -> str:
-    """Usa el modelo pedido si está en /api/tags; si no, el que el launcher ya bajó.
-
-    Bug Oscar: splash bajó llama3.1:8b (RAM) y interview pedía llama3.2:3b → POST
-    /api/chat 404 → 503, con /api/health y /api/readiness en 200.
-    """
-    names = _ollama_model_names()
+def _launcher_ollama_model() -> str:
     env_model = (
         os.environ.get("OLLAMA_MODEL")
         or os.environ.get("OLLAMA_DEFAULT_MODEL")
         or ""
     ).strip()
-    if not env_model:
-        marker = DATA_DIR / "ollama" / "active_model.txt"
-        try:
-            if marker.is_file():
-                env_model = marker.read_text(encoding="utf-8").strip()
-        except Exception:
-            pass
+    if env_model:
+        return env_model
+    marker = DATA_DIR / "ollama" / "active_model.txt"
+    try:
+        if marker.is_file():
+            return marker.read_text(encoding="utf-8").strip()
+    except Exception:
+        pass
+    return ""
+
+
+def _is_vision_name(name: str) -> bool:
+    n = (name or "").lower()
+    return "moondream" in n or "llava" in n or "vision" in n
+
+
+def _desktop_pins_profile_model() -> bool:
+    if os.environ.get("RUN_BY_TAURI") == "1":
+        return True
+    return _IS_FROZEN
+
+
+def resolve_ollama_model(requested: str) -> str:
+    """En desktop usa OLLAMA_MODEL aunque haya otro modelo instalado.
+
+    Fuera del instalador, si el modelo pedido está en Ollama se respeta.
+    """
+    names = _ollama_model_names()
+    env_model = _launcher_ollama_model()
     want = (requested or "").strip()
+    if want.lower() in ("perfil", "auto", "modelo del perfil"):
+        want = ""
+
+    if _desktop_pins_profile_model() and env_model and not _is_vision_name(want):
+        for n in names:
+            if n == env_model or _model_name_matches(n, env_model):
+                if want and want != n:
+                    logger.info("Desktop: agente pidió %s; se usa el perfil %s", want, n)
+                return n
+        return env_model
 
     if want:
         for n in names:
@@ -1332,6 +1358,13 @@ async def check_readiness():
             "pulls": active_pulls,
         })
 
+    from hardware_profile import load_active_profile
+
+    profile = load_active_profile(str(DATA_DIR)) or {}
+    access_level = profile.get("access") or "ok"
+    if access_level not in ("block", "warn", "ok"):
+        access_level = "ok"
+
     return {
         "ready": ready and not active_pulls,
         "ollama_available": ollama_ok,
@@ -1339,6 +1372,17 @@ async def check_readiness():
         "models": models,
         "active_pulls": active_pulls,
         "issues": issues,
+        "access": {
+            "level": access_level,
+            "ram_gb": profile.get("ramGb"),
+        },
+        "profile": {
+            "id": profile.get("id") or "",
+            "label": profile.get("label") or "",
+            "model": profile.get("model") or "",
+            "extra_models": profile.get("extraModels") or [],
+        },
+        "vision": "no disponible en este perfil",
     }
 
 # ---------------------------------------------------------------------------
@@ -2553,6 +2597,9 @@ async def list_agents():
                 skill_contents[skill_name] = ""
 
         agent["skill_contents"] = skill_contents
+        agent["model_locked"] = True
+        agent["model_label"] = "Modelo del perfil"
+        agent["vision"] = "no disponible en este perfil"
 
     return agents_data
 
@@ -2570,8 +2617,13 @@ async def update_agent(agent_id: str, config: AgentConfigUpdate):
     for i, a in enumerate(agents_data.get("agents", [])):
         if a["id"] == agent_id:
             if config.model is not None:
-                old_model = agents_data["agents"][i].get("model", "")
-                agents_data["agents"][i]["model"] = config.model
+                if _desktop_pins_profile_model():
+                    logger.info(
+                        "Agente '%s': se ignora el cambio de modelo en desktop; se usa el perfil de RAM",
+                        agent_id,
+                    )
+                else:
+                    agents_data["agents"][i]["model"] = config.model
             if config.temperature is not None:
                 agents_data["agents"][i]["temperature"] = config.temperature
             if config.system_prompt is not None:
@@ -2585,6 +2637,8 @@ async def update_agent(agent_id: str, config: AgentConfigUpdate):
             agents_data["agents"][i]["updated_at"] = datetime.now().isoformat()
             save_json(DATA_DIR / "agents" / "agents.json", agents_data)
 
+            if _desktop_pins_profile_model():
+                return agents_data["agents"][i]
             model = config.model or agents_data["agents"][i].get("model")
             if model and not _is_model_available(model):
                 _start_pull_background(model)
@@ -2681,7 +2735,13 @@ async def update_agents_bulk(request: Request):
         for i, a in enumerate(agents_data.get("agents", [])):
             if a["id"] == update.get("id"):
                 if "model" in update:
-                    agents_data["agents"][i]["model"] = update["model"]
+                    if _desktop_pins_profile_model():
+                        logger.info(
+                            "Agente '%s': se ignora el cambio de modelo en desktop; se usa el perfil de RAM",
+                            a["id"],
+                        )
+                    else:
+                        agents_data["agents"][i]["model"] = update["model"]
                 if "temperature" in update:
                     agents_data["agents"][i]["temperature"] = update["temperature"]
                 if "system_prompt" in update:

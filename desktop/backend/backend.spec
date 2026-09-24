@@ -62,6 +62,7 @@ hiddenimports = [
     "analytics",
     "security",
     "hardware",
+    "hardware_profile",
     "ollama_client",
 ]
 

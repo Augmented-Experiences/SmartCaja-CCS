@@ -35,6 +35,7 @@ async function checkOllama() {
     const data = await r.json();
     const dot = document.getElementById('ollamaDot');
     const text = document.getElementById('ollamaStatusText');
+    renderRamWarning(data);
 
     if (data.ready) {
       dot.className = 'status-dot online';
@@ -58,6 +59,7 @@ function pollOllama() {
     try {
       const r = await fetch(`${API}/api/readiness`);
       const d = await r.json();
+      renderRamWarning(d);
       if (d.ready) {
         clearInterval(poll);
         document.getElementById('ollamaDot').className = 'status-dot online';
@@ -66,6 +68,24 @@ function pollOllama() {
       }
     } catch(e) {}
   }, 4000);
+}
+
+function renderRamWarning(data) {
+  const el = document.getElementById('ramWarnBanner');
+  if (!el) return;
+  const access = data && data.access ? data.access : {};
+  if (access.level !== 'warn') {
+    el.innerHTML = '';
+    return;
+  }
+  const ram = (typeof access.ram_gb === 'number') ? access.ram_gb.toFixed(1) + ' GB' : 'poca RAM';
+  el.innerHTML = `<div class="readiness-banner not-ready" style="margin-top:8px">
+    <div style="font-size:20px;">&#9888;&#65039;</div>
+    <div>
+      <div style="font-weight:700;">Perfil Estándar</div>
+      <div style="font-size:12px;opacity:0.8;">Este equipo tiene ${escapeHtml(ram)}. SmartCaja usa un modelo compacto. Cierra Chrome o Teams mientras generas; los textos largos tardan más.</div>
+    </div>
+  </div>`;
 }
 
 function showReadinessBanner(ready, message) {
@@ -1233,7 +1253,7 @@ async function loadSettings() {
               <i class="fas fa-robot" style="color:var(--ccs-azul); font-size:12px;"></i>
               <div style="flex:1;">
                 <div style="font-size:12px; font-weight:600;">${escapeHtml(a.name || a.id)}</div>
-                <div style="font-size:10px; color:var(--text-muted);">${escapeHtml(a.model || 'sin modelo')}</div>
+                <div style="font-size:10px; color:var(--text-muted);">${escapeHtml(a.model_label || 'Modelo del perfil')}</div>
               </div>
               <span style="font-size:10px; padding:2px 6px; background:rgba(0,213,58,0.1); color:var(--ccs-verde); border-radius:8px;">T:${a.temperature || 0.7}</span>
             </div>
@@ -1496,7 +1516,8 @@ async function loadAgents() {
       // Model & Temperature
       html += `<div style="display:flex; gap:16px; margin-bottom:16px; flex-wrap:wrap;">`;
       html += `<div class="form-group" style="flex:1; min-width:180px;"><label style="font-size:11px;">Modelo</label>`;
-      html += `<input type="text" id="agent-model-${agentId}" value="${escapeHtml(agent.model || 'llama3.2:3b')}" style="font-size:12px;"></div>`;
+      html += `<input type="text" id="agent-model-${agentId}" value="Modelo del perfil" disabled style="font-size:12px;">`;
+      html += `<div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Visión: ${escapeHtml(agent.vision || 'no disponible en este perfil')}</div></div>`;
       html += `<div class="form-group" style="width:100px;"><label style="font-size:11px;">Temperatura</label>`;
       html += `<input type="number" id="agent-temp-${agentId}" value="${agent.temperature || 0.7}" min="0" max="2" step="0.1" style="font-size:12px;"></div>`;
       html += `</div>`;
@@ -1572,12 +1593,10 @@ async function saveSkillContent(agentId, skillName) {
 
 async function saveAgentPrompt(agentId) {
   const promptEl = document.getElementById(`agent-prompt-${agentId}`);
-  const modelEl = document.getElementById(`agent-model-${agentId}`);
   const tempEl = document.getElementById(`agent-temp-${agentId}`);
   if (!promptEl) return;
 
   const payload = { system_prompt: promptEl.value };
-  if (modelEl) payload.model = modelEl.value.trim();
   if (tempEl) payload.temperature = parseFloat(tempEl.value) || 0.7;
 
   try {
@@ -1588,7 +1607,7 @@ async function saveAgentPrompt(agentId) {
     });
     const data = await resp.json();
     if (data.pull_status && data.pull_status.status === 'queued') {
-      notify('info', `Descargando modelo "${payload.model}"... Esto puede tardar.`);
+      notify('info', 'El modelo lo elige el perfil de RAM; no se descarga otro.');
     } else {
       notify('success', `Agente "${agentId}" actualizado correctamente`);
     }
