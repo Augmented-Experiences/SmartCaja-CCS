@@ -46,7 +46,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel, field_validator
-from interview_manager import InterviewManager
+from interview_manager import InterviewManager, GLOSSARY, interview_panel, TOPIC_LABELS
 
 # ---------------------------------------------------------------------------
 # Configuración de rutas
@@ -128,6 +128,14 @@ MAX_COMPANY_NAME_LENGTH = 200
 MAX_MONTHS = 60
 RATE_LIMIT_WINDOW = 60
 RATE_LIMIT_MAX_REQUESTS = 20
+MAX_AGENT_SKILLS = 8
+AGENT_ROLE_ES = {
+    "interviewer": "Entrevistador",
+    "analyst": "Analista",
+    "simulator": "Simulador",
+    "extractor": "Extractor",
+    "agent": "Agente",
+}
 
 # ---------------------------------------------------------------------------
 # Logging (sin datos financieros sensibles)
@@ -764,6 +772,7 @@ class ChatMessage(BaseModel):
     company_id: str
     message: str
     session_id: Optional[str] = ""
+    focus_topic: Optional[str] = None
 
     @field_validator("session_id", mode="before")
     @classmethod
@@ -771,6 +780,14 @@ class ChatMessage(BaseModel):
         if v is None:
             return ""
         return str(v)
+
+    @field_validator("focus_topic", mode="before")
+    @classmethod
+    def coerce_focus_topic(cls, v):
+        if not v:
+            return None
+        key = str(v).strip()
+        return key if key in TOPIC_LABELS else None
 
     @field_validator("message")
     @classmethod
@@ -799,6 +816,7 @@ class AgentConfigUpdate(BaseModel):
     model: Optional[str] = None
     temperature: Optional[float] = None
     system_prompt: Optional[str] = None
+    skills: Optional[List[str]] = None
 
     @field_validator("temperature")
     @classmethod
@@ -1592,8 +1610,32 @@ async def create_company(data: CompanyCreate):
         "updated_at": datetime.now().isoformat()
     }
     save_json(company_dir / "company.json", company)
+    persist_interview_seed(company, company_dir)
     logger.info(f"Empresa creada: {company_id}")
     return company
+
+def persist_interview_seed(company: dict, company_dir: Path, existing: dict = None) -> dict:
+    """Persiste temas y datos sembrados desde la ficha de la empresa para que el panel
+    muestre checks de inmediato y la entrevista pida confirmar, no repetir."""
+    interview_state_path = company_dir / "interview_state.json"
+    persisted = existing if existing is not None else load_json(
+        interview_state_path, {"collected_data": {}, "topics_covered": []}
+    )
+    im = InterviewManager(
+        company_data=company,
+        persisted_data=persisted.get("collected_data", {}),
+        persisted_topics=persisted.get("topics_covered", []),
+    )
+    merged_topics = list(dict.fromkeys(im.topics_covered))
+    merged_data = {**persisted.get("collected_data", {}), **im.collected_data}
+    state = {
+        "collected_data": merged_data,
+        "topics_covered": merged_topics,
+        "seeded_from_company": True,
+        "last_updated": datetime.now().isoformat(),
+    }
+    save_json(interview_state_path, state)
+    return state
 
 def _reconcile_company_status(company: dict, company_dir: Path) -> dict:
     """Reconcilia el estado de la empresa basándose en archivos reales en disco.
@@ -1656,7 +1698,7 @@ async def get_interview_progress(company_id: str):
     interview_state_path = company_dir / "interview_state.json"
     persisted_state = load_json(interview_state_path, {"collected_data": {}, "topics_covered": []})
     company = load_json(company_dir / "company.json")
-    # Recalcular progreso usando InterviewManager
+    persisted_state = persist_interview_seed(company, company_dir, persisted_state)
     im = InterviewManager(
         company_data=company,
         persisted_data=persisted_state.get("collected_data", {}),
@@ -1665,9 +1707,11 @@ async def get_interview_progress(company_id: str):
     progress = im.get_interview_progress()
     return {
         "progress": progress,
-        "topics_covered": persisted_state.get("topics_covered", []),
+        "topics_covered": progress.get("topics_covered", []),
+        "stages": progress.get("stages", interview_panel()),
         "collected_data_keys": list(persisted_state.get("collected_data", {}).keys()),
         "last_updated": persisted_state.get("last_updated"),
+        "complete_hint": progress.get("complete_hint"),
     }
 
 @app.delete("/api/companies/{company_id}")
@@ -1712,7 +1756,8 @@ async def chat_interview(data: ChatMessage):
     im = InterviewManager(
         company_data=company,
         persisted_data=persisted_state.get("collected_data", {}),
-        persisted_topics=persisted_state.get("topics_covered", [])
+        persisted_topics=persisted_state.get("topics_covered", []),
+        focus_topic=data.focus_topic,
     )
 
     # Extraer datos del mensaje actual ANTES de generar el prompt
@@ -1766,17 +1811,9 @@ async def chat_interview(data: ChatMessage):
     # Calcular progreso basado en datos recopilados
     progress = im.get_interview_progress()
 
-    # --- Detectar si el usuario acepta generar el cashflow ---
+    # La generación del flujo es solo con el botón «Generar Cashflow».
+    # «sí» / «ok» confirman el tema actual, no disparan el motor.
     trigger_generation = False
-    msg_lower = data.message.lower().strip()
-    acceptance_phrases = [
-        "sí", "si", "dale", "genera", "generar", "hazlo", "ok", "listo",
-        "sí, genera", "si, genera", "genera el cashflow", "vamos",
-        "perfecto", "adelante", "procede", "sí por favor",
-    ]
-    if progress.get("is_complete", False) or progress.get("has_enough_data", False):
-        if any(phrase in msg_lower for phrase in acceptance_phrases):
-            trigger_generation = True
 
     return {
         "response": response,
@@ -1788,6 +1825,29 @@ async def chat_interview(data: ChatMessage):
         "is_complete": progress.get("is_complete", False),
         "trigger_generation": trigger_generation,
     }
+
+@app.get("/api/glossary")
+async def get_glossary(topic_id: Optional[str] = None):
+    """Glosario de términos financieros de la entrevista y métricas."""
+    if topic_id:
+        entry = GLOSSARY.get(topic_id)
+        if not entry:
+            raise HTTPException(404, "Término no encontrado")
+        return {"id": topic_id, **entry}
+    return {
+        "terms": [{"id": k, **v} for k, v in GLOSSARY.items()],
+        "panel": interview_panel(),
+    }
+
+
+@app.get("/api/skills/available")
+async def list_available_skills():
+    names = set()
+    for folder in (DEFAULTS_DIR / "prompts" / "skills", DATA_DIR / "prompts" / "skills"):
+        if folder.exists():
+            for skill_file in folder.glob("*.md"):
+                names.add(skill_file.stem)
+    return {"skills": sorted(names), "max_per_agent": MAX_AGENT_SKILLS}
 
 # ---------------------------------------------------------------------------
 # Endpoints: Generación de Flujo de Caja
@@ -2600,6 +2660,8 @@ async def list_agents():
         agent["model_locked"] = True
         agent["model_label"] = "Modelo del perfil"
         agent["vision"] = "no disponible en este perfil"
+        agent["role_label"] = AGENT_ROLE_ES.get(agent.get("role"), agent.get("role") or "Agente")
+        agent["max_skills"] = MAX_AGENT_SKILLS
 
     return agents_data
 
@@ -2634,6 +2696,18 @@ async def update_agent(agent_id: str, config: AgentConfigUpdate):
                 prompt_file.write_text(config.system_prompt, encoding="utf-8")
                 agents_data["agents"][i]["system_prompt"] = config.system_prompt
                 logger.info(f"[AGENTS] Prompt de '{agent_id}' guardado en disco ({len(config.system_prompt)} chars)")
+            if config.skills is not None:
+                cleaned = []
+                for raw in config.skills:
+                    name = re.sub(r"[^a-zA-Z0-9_-]", "", str(raw or ""))
+                    if name and name not in cleaned:
+                        cleaned.append(name)
+                if len(cleaned) > MAX_AGENT_SKILLS:
+                    raise HTTPException(
+                        400,
+                        f"Máximo {MAX_AGENT_SKILLS} skills por agente. Quita uno antes de añadir otro.",
+                    )
+                agents_data["agents"][i]["skills"] = cleaned
             agents_data["agents"][i]["updated_at"] = datetime.now().isoformat()
             save_json(DATA_DIR / "agents" / "agents.json", agents_data)
 

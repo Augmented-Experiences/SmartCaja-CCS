@@ -19,6 +19,12 @@ let state = {
   mcTaskId: null,
   currentPage: 'home',
   wizardStep: 1,
+  focusTopic: null,
+  currentTopic: null,
+  interviewStages: null,
+  glossaryTerms: null,
+  availableSkills: [],
+  installedModels: [],
 };
 
 // ============================================================================
@@ -236,17 +242,20 @@ async function selectCompany(id) {
       await loadSession(id, lastSession.id);
     } else {
       const chatDiv = document.getElementById('chatMessages');
-      chatDiv.innerHTML = `<div class="chat-message system-msg">Bienvenido. Soy tu analista financiero. Vamos a construir el modelo de flujo de caja para <strong>${escapeHtml(company.name)}</strong>. Cuéntame sobre tu negocio.</div>`;
+      const bits = [];
+      if (company.sector) bits.push(`sector <strong>${escapeHtml(company.sector)}</strong>`);
+      if (company.employees) bits.push(`${escapeHtml(String(company.employees))} empleado(s)`);
+      if (company.initial_cash) bits.push(`caja ${formatCurrency(company.initial_cash)}`);
+      if (company.country) bits.push(`${escapeHtml(company.country)} / ${escapeHtml(company.currency || '')}`);
+      const resumen = bits.length
+        ? `Ya registramos ${bits.join(', ')}. Confírmalos o ajústalos; no hace falta repetirlos. Haz clic en un tema del panel o responde aquí.`
+        : 'Sigue el orden del panel o haz clic en un tema. El flujo se genera solo cuando pulses <strong>Generar Cashflow</strong>.';
+      chatDiv.innerHTML = `<div class="chat-message system-msg">Bienvenido. Soy tu analista financiero de la CCS para <strong>${escapeHtml(company.name)}</strong>. ${resumen}</div>`;
     }
 
     // Enable chat
     document.getElementById('chatInput').disabled = false;
     document.getElementById('btnSendChat').disabled = false;
-
-    // Show generate button if has enough data
-    if (company.status === 'interviewing' || company.status === 'complete') {
-      document.getElementById('btnGenerateCashflow').style.display = 'inline-flex';
-    }
 
     // Load cashflow if exists
     if (company.status === 'complete') {
@@ -414,65 +423,60 @@ function handleChatKey(event) {
 
 const MAX_MESSAGE_LENGTH = 10000;
 
-async function sendMessage() {
+async function sendMessage(overrideMsg, focusTopic) {
   const input = document.getElementById('chatInput');
-  const msg = input.value.trim();
+  const msg = (overrideMsg != null ? String(overrideMsg) : input.value).trim();
   if (!msg || !state.companyId) return;
   if (msg.length > MAX_MESSAGE_LENGTH) {
     addChatBubble('assistant', `El mensaje es demasiado largo (máximo ${MAX_MESSAGE_LENGTH} caracteres).`);
     return;
   }
 
-  input.value = '';
-  input.style.height = 'auto';
+  if (overrideMsg == null) {
+    input.value = '';
+    input.style.height = 'auto';
+  }
   addChatBubble('user', msg);
-  // Show typing indicator
   const typingId = showTyping();
+  const topic = focusTopic || state.focusTopic || null;
 
   try {
     const r = await fetch(`${API}/api/chat/interview`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ company_id: state.companyId, message: msg, session_id: state.sessionId })
+      body: JSON.stringify({
+        company_id: state.companyId,
+        message: msg,
+        session_id: state.sessionId,
+        focus_topic: topic || undefined,
+      })
     });
     const data = await r.json();
     state.sessionId = data.session_id;
+    state.focusTopic = null;
 
     removeTyping(typingId);
     addChatBubble('assistant', data.response);
 
-    // Actualizar progreso real desde el backend
     if (data.progress) {
       updateInterviewProgressFromData(data.progress);
     }
 
-    // Mostrar botón de generar si hay suficientes datos
     const btnGen = document.getElementById('btnGenerateCashflow');
-    if (data.has_enough_data || data.is_complete) {
+    if (btnGen) {
       btnGen.style.display = 'inline-flex';
-      btnGen.style.opacity = '1';
+      btnGen.style.opacity = (data.has_enough_data || data.is_complete) ? '1' : '0.85';
       if (data.is_complete) {
         btnGen.classList.add('pulse-animation');
-        btnGen.innerHTML = '<i class="fas fa-rocket"></i> \u00a1Generar Cashflow Ahora!';
+        btnGen.innerHTML = '<i class="fas fa-rocket"></i> Generar Cashflow';
       }
-    } else {
-      btnGen.style.display = 'inline-flex';
-      btnGen.style.opacity = '0.6';
     }
 
-    // Auto-gatillar generación si el usuario aceptó
-    if (data.trigger_generation) {
-      setTimeout(function() {
-        addChatBubble('system-msg', '\u2728 Iniciando generaci\u00f3n del flujo de caja...');
-        generateCashflow();
-      }, 1500);
-    }
-
-    updateInterviewTopics(data.progress?.topics_covered || []);
+    updateInterviewTopics(data.progress?.topics_covered || [], data.progress || {});
   } catch(e) {
     removeTyping(typingId);
     console.error('[SmartCaja] Chat error:', e);
-    addChatBubble('system-msg', 'Error comunicando con el servidor. Verifica que Ollama est\u00e9 activo.');
+    addChatBubble('system-msg', 'Error comunicando con el servidor. Verifica que Ollama esté activo.');
   }
 }
 
@@ -484,7 +488,7 @@ async function restoreInterviewProgress(companyId) {
     if (data.progress) {
       updateInterviewProgressFromData(data.progress);
     }
-    updateInterviewTopics(data.topics_covered || []);
+    updateInterviewTopics(data.topics_covered || data.progress?.topics_covered || [], data.progress || {});
   } catch(e) {
     console.error('[SmartCaja] Error restoring interview progress:', e);
     updateInterviewTopics([]);
@@ -493,12 +497,212 @@ async function restoreInterviewProgress(companyId) {
 
 function updateInterviewProgressFromData(progress) {
   const pctEl = document.getElementById('interviewPct');
+  const covered = progress.covered || 0;
+  const total = progress.total_topics || 0;
+  const pct = Math.round(progress.progress_pct || 0);
   if (pctEl) {
-    pctEl.textContent = `${Math.round(progress.progress_pct || 0)}%`;
+    pctEl.textContent = `${pct}%`;
     pctEl.style.color = progress.is_complete ? 'var(--ccs-verde)' : 'var(--ccs-azul)';
+  }
+  const labelEl = document.getElementById('interviewProgressLabel');
+  if (labelEl && total) {
+    labelEl.innerHTML = `Progreso: <strong id="interviewPct" style="color:${progress.is_complete ? 'var(--ccs-verde)' : 'var(--ccs-azul)'};">${pct}%</strong> <span style="color:var(--text-muted);">(${covered} de ${total})</span>`;
   }
   const barEl = document.getElementById('interviewBar');
   if (barEl) barEl.style.width = `${progress.progress_pct || 0}%`;
+  const hint = document.getElementById('interviewHint');
+  if (hint && progress.complete_hint) {
+    hint.textContent = progress.complete_hint + ' Haz clic en un tema para saltar a él.';
+  }
+  if (progress.stages) state.interviewStages = progress.stages;
+  if (progress.current_topic) state.currentTopic = progress.current_topic;
+}
+
+function jumpToInterviewTopic(topicId, label) {
+  if (!state.companyId || !topicId) return;
+  state.focusTopic = topicId;
+  state.currentTopic = topicId;
+  updateInterviewTopics(state.lastCoveredTopics || [], { current_topic: topicId, stages: state.interviewStages });
+  sendMessage('Quiero hablar del tema: ' + label, topicId);
+}
+
+function updateInterviewTopics(coveredTopics = [], progress = {}) {
+  state.lastCoveredTopics = coveredTopics;
+  const stages = progress.stages || state.interviewStages;
+  const current = progress.current_topic || state.currentTopic;
+  const container = document.getElementById('interviewTopics');
+  if (!container) return;
+
+  const renderItem = (t) => {
+    const covered = coveredTopics.includes(t.id);
+    const isCurrent = current === t.id;
+    const icon = covered ? 'fa-check-circle' : (t.icon || 'fa-circle');
+    return `<div class="topic-item ${covered ? 'covered' : ''} ${isCurrent ? 'current' : ''}" role="button" tabindex="0"
+        onclick='jumpToInterviewTopic(${JSON.stringify(t.id)}, ${JSON.stringify(t.label)})'>
+      <span class="topic-icon"><i class="fas ${icon}" style="${covered ? 'color:var(--ccs-verde)' : ''}"></i></span>
+      <span style="flex:1;">${escapeHtml(t.label)}</span>
+      <button type="button" class="topic-help" title="¿Qué es esto?" onclick='event.stopPropagation(); openGlossary(${JSON.stringify(t.id)})'><i class="fas fa-question-circle"></i></button>
+    </div>`;
+  };
+
+  if (stages && stages.length) {
+    container.innerHTML = stages.map(stage => `
+      <div class="topic-stage">${escapeHtml(stage.label)}</div>
+      ${(stage.topics || []).map(renderItem).join('')}
+    `).join('');
+    return;
+  }
+
+  const fallback = [
+    { id: 'tipo_negocio', label: 'Tipo de negocio', icon: 'fa-store' },
+    { id: 'productos_servicios', label: 'Productos/Servicios', icon: 'fa-box' },
+    { id: 'segmentos_clientes', label: 'Segmentos de clientes', icon: 'fa-users' },
+    { id: 'modelo_ingresos', label: 'Modelo de ingresos', icon: 'fa-dollar-sign' },
+    { id: 'precios_volumen', label: 'Precios y volúmenes', icon: 'fa-tag' },
+    { id: 'crecimiento', label: 'Crecimiento esperado', icon: 'fa-chart-line' },
+    { id: 'estacionalidad', label: 'Estacionalidad', icon: 'fa-calendar' },
+    { id: 'costos_variables', label: 'Costos variables', icon: 'fa-receipt' },
+    { id: 'costos_fijos', label: 'Costos fijos', icon: 'fa-building' },
+    { id: 'salarios', label: 'Salarios', icon: 'fa-user-tie' },
+    { id: 'caja_inicial', label: 'Caja inicial', icon: 'fa-piggy-bank' },
+    { id: 'deuda', label: 'Deuda', icon: 'fa-credit-card' },
+    { id: 'riesgos', label: 'Riesgos principales', icon: 'fa-shield-alt' },
+  ];
+  container.innerHTML = fallback.map(renderItem).join('');
+}
+
+async function openGlossary(topicId) {
+  openModal('glossaryModal');
+  const box = document.getElementById('glossaryContent');
+  if (!state.glossaryTerms) {
+    box.innerHTML = '<p style="color:var(--text-muted);">Cargando glosario...</p>';
+    try {
+      const r = await fetch(`${API}/api/glossary`);
+      const data = await r.json();
+      state.glossaryTerms = data.terms || [];
+    } catch (e) {
+      box.innerHTML = '<p>No se pudo cargar el glosario.</p>';
+      return;
+    }
+  }
+  renderGlossary(topicId);
+}
+
+function renderGlossary(focusId) {
+  const box = document.getElementById('glossaryContent');
+  const terms = state.glossaryTerms || [];
+  const ordered = focusId
+    ? [...terms.filter(t => t.id === focusId), ...terms.filter(t => t.id !== focusId)]
+    : terms;
+  box.innerHTML = ordered.map(t => {
+    const calc = t.calculator === 'fixed_costs' ? glossaryCalcFixed()
+      : t.calculator === 'variable_pct' ? glossaryCalcVariable()
+      : t.calculator === 'salary_chile' ? glossaryCalcSalary()
+      : '';
+    return `<div class="glossary-term" id="glossary-${t.id}">
+      <h4>${escapeHtml(t.title || t.id)}</h4>
+      <p style="font-size:13px;">${escapeHtml(t.definition || '')}</p>
+      ${t.formula ? `<div class="glossary-formula">${escapeHtml(t.formula)}</div>` : ''}
+      ${calc}
+    </div>`;
+  }).join('');
+  if (focusId) {
+    const el = document.getElementById('glossary-' + focusId);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
+function glossaryCalcFixed() {
+  return `<div class="calc-box">
+    <div style="font-size:12px; font-weight:700; color:var(--ccs-azul-oscuro); margin-bottom:8px;">Calculadora de costo fijo mensual</div>
+    <div class="form-row">
+      <div class="form-group"><label>Arriendo</label><input type="number" id="calcArriendo" oninput="runFixedCalc()"></div>
+      <div class="form-group"><label>Servicios</label><input type="number" id="calcServicios" oninput="runFixedCalc()"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Seguros</label><input type="number" id="calcSeguros" oninput="runFixedCalc()"></div>
+      <div class="form-group"><label>Software y otros</label><input type="number" id="calcOtrosFijos" oninput="runFixedCalc()"></div>
+    </div>
+    <div class="calc-result" id="calcFixedResult">Total: $0</div>
+  </div>`;
+}
+
+function glossaryCalcVariable() {
+  return `<div class="calc-box">
+    <div style="font-size:12px; font-weight:700; color:var(--ccs-azul-oscuro); margin-bottom:8px;">Calculadora de % costo variable</div>
+    <div class="form-row">
+      <div class="form-group"><label>Costo de producir o comprar (mes)</label><input type="number" id="calcCostoProd" oninput="runVariableCalc()"></div>
+      <div class="form-group"><label>Ventas del mes</label><input type="number" id="calcVentasMes" oninput="runVariableCalc()"></div>
+    </div>
+    <div class="calc-result" id="calcVarResult">% costo variable: —</div>
+  </div>`;
+}
+
+function glossaryCalcSalary() {
+  return `<div class="calc-box">
+    <div style="font-size:12px; font-weight:700; color:var(--ccs-azul-oscuro); margin-bottom:8px;">Sueldo líquido / bruto (Chile, estimación)</div>
+    <p style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">Descuenta AFP ~10,77%, salud 7%, cesantía 0,6% e impuesto único simplificado. No reemplaza una liquidación oficial.</p>
+    <div class="form-row">
+      <div class="form-group"><label>Sueldo bruto</label><input type="number" id="calcBruto" oninput="runSalaryCalc('bruto')"></div>
+      <div class="form-group"><label>Sueldo líquido</label><input type="number" id="calcLiquido" oninput="runSalaryCalc('liquido')"></div>
+    </div>
+    <div class="calc-result" id="calcSalaryResult">Completa un campo para estimar el otro.</div>
+  </div>`;
+}
+
+function runFixedCalc() {
+  const n = (id) => parseFloat(document.getElementById(id)?.value || 0) || 0;
+  const total = n('calcArriendo') + n('calcServicios') + n('calcSeguros') + n('calcOtrosFijos');
+  const el = document.getElementById('calcFixedResult');
+  if (el) el.textContent = 'Total: ' + formatCurrency(total);
+}
+
+function runVariableCalc() {
+  const costo = parseFloat(document.getElementById('calcCostoProd')?.value || 0) || 0;
+  const ventas = parseFloat(document.getElementById('calcVentasMes')?.value || 0) || 0;
+  const el = document.getElementById('calcVarResult');
+  if (!el) return;
+  if (ventas <= 0) { el.textContent = '% costo variable: —'; return; }
+  el.textContent = '% costo variable: ' + ((costo / ventas) * 100).toFixed(1) + '%';
+}
+
+function chilePayroll(bruto) {
+  const afp = bruto * 0.1077;
+  const salud = bruto * 0.07;
+  const cesantia = bruto * 0.006;
+  const imponible = Math.max(0, bruto - afp - salud - cesantia);
+  let tax = 0;
+  if (imponible > 3200000) tax = imponible * 0.135 - 280000;
+  else if (imponible > 1800000) tax = imponible * 0.08 - 90000;
+  else if (imponible > 900000) tax = imponible * 0.04 - 25000;
+  tax = Math.max(0, tax);
+  return { afp, salud, cesantia, tax, liquido: bruto - afp - salud - cesantia - tax };
+}
+
+function runSalaryCalc(source) {
+  const brutoEl = document.getElementById('calcBruto');
+  const liqEl = document.getElementById('calcLiquido');
+  const out = document.getElementById('calcSalaryResult');
+  if (!brutoEl || !liqEl || !out) return;
+  if (source === 'bruto') {
+    const bruto = parseFloat(brutoEl.value || 0) || 0;
+    if (!bruto) { out.textContent = 'Completa un campo para estimar el otro.'; return; }
+    const p = chilePayroll(bruto);
+    liqEl.value = Math.round(p.liquido);
+    out.textContent = `AFP ${formatCurrency(p.afp)} · Salud ${formatCurrency(p.salud)} · Cesantía ${formatCurrency(p.cesantia)} · Impuesto ${formatCurrency(p.tax)} · Líquido ${formatCurrency(p.liquido)}`;
+  } else {
+    const neto = parseFloat(liqEl.value || 0) || 0;
+    if (!neto) { out.textContent = 'Completa un campo para estimar el otro.'; return; }
+    let lo = neto, hi = neto * 1.9;
+    for (let i = 0; i < 40; i++) {
+      const mid = (lo + hi) / 2;
+      if (chilePayroll(mid).liquido < neto) lo = mid; else hi = mid;
+    }
+    const bruto = (lo + hi) / 2;
+    brutoEl.value = Math.round(bruto);
+    const p = chilePayroll(bruto);
+    out.textContent = `Bruto estimado ${formatCurrency(bruto)} · descuentos ${formatCurrency(bruto - p.liquido)}`;
+  }
 }
 
 function addChatBubble(role, content) {
@@ -534,33 +738,6 @@ function showTyping() {
 function removeTyping(id) {
   const el = document.getElementById(id);
   if (el) el.remove();
-}
-
-function updateInterviewTopics(coveredTopics = []) {
-  const topics = [
-    { id: 'tipo_negocio', label: 'Tipo de negocio', icon: 'fa-store' },
-    { id: 'productos_servicios', label: 'Productos/Servicios', icon: 'fa-box' },
-    { id: 'segmentos_clientes', label: 'Segmentos de clientes', icon: 'fa-users' },
-    { id: 'modelo_ingresos', label: 'Modelo de ingresos', icon: 'fa-dollar-sign' },
-    { id: 'precios_volumen', label: 'Precios y vol\u00famenes', icon: 'fa-tag' },
-    { id: 'crecimiento', label: 'Crecimiento esperado', icon: 'fa-chart-line' },
-    { id: 'estacionalidad', label: 'Estacionalidad', icon: 'fa-calendar' },
-    { id: 'costos_variables', label: 'Costos variables', icon: 'fa-receipt' },
-    { id: 'costos_fijos', label: 'Costos fijos', icon: 'fa-building' },
-    { id: 'salarios', label: 'Salarios', icon: 'fa-user-tie' },
-    { id: 'caja_inicial', label: 'Caja inicial', icon: 'fa-piggy-bank' },
-    { id: 'deuda', label: 'Deuda', icon: 'fa-credit-card' },
-    { id: 'riesgos', label: 'Riesgos principales', icon: 'fa-shield-alt' },
-  ];
-
-  const container = document.getElementById('interviewTopics');
-  if (!container) return;
-  container.innerHTML = topics.map(t => {
-    const covered = coveredTopics.includes(t.id);
-    return `<div class="topic-item ${covered ? 'covered' : ''}">
-      <span class="topic-icon"><i class="fas ${covered ? 'fa-check-circle' : t.icon}" style="${covered ? 'color:var(--ccs-verde)' : ''}"></i></span> ${t.label}
-    </div>`;
-  }).join('');
 }
 
 // ============================================================================
@@ -783,14 +960,19 @@ function renderSimulationControls() {
   container.innerHTML = `
     <div class="slider-group"><label><span>Variación de ventas</span><span id="sliderSalesVal">0%</span></label>
       <input type="range" min="-50" max="100" value="0" id="sliderSales" oninput="document.getElementById('sliderSalesVal').textContent=this.value+'%'"></div>
+    <p class="slider-hint">Sobre las ventas actuales. +20% = vendes un 20% más que en tu flujo de caja.</p>
     <div class="slider-group"><label><span>Costos variables</span><span id="sliderCostsVal">0%</span></label>
       <input type="range" min="-30" max="50" value="0" id="sliderCosts" oninput="document.getElementById('sliderCostsVal').textContent=this.value+'%'"></div>
+    <p class="slider-hint">Costo de producir o comprar lo que vendes, respecto de hoy.</p>
     <div class="slider-group"><label><span>Costos fijos</span><span id="sliderFixedVal">0%</span></label>
       <input type="range" min="-20" max="40" value="0" id="sliderFixed" oninput="document.getElementById('sliderFixedVal').textContent=this.value+'%'"></div>
+    <p class="slider-hint">Arriendo, servicios, seguros, etc. 0% = se mantienen.</p>
     <div class="slider-group"><label><span>Inflación anual</span><span id="sliderInflVal">0%</span></label>
       <input type="range" min="0" max="30" value="0" id="sliderInfl" oninput="document.getElementById('sliderInflVal').textContent=this.value+'%'"></div>
+    <p class="slider-hint">Alza de precios en 12 meses. 0% = sin inflación extra en la simulación.</p>
     <div class="slider-group"><label><span>Nuevos clientes</span><span id="sliderClientsVal">0%</span></label>
       <input type="range" min="-20" max="50" value="0" id="sliderClients" oninput="document.getElementById('sliderClientsVal').textContent=this.value+'%'"></div>
+    <p class="slider-hint">Crecimiento extra de cartera. −20% = se pierde una quinta parte de los clientes.</p>
   `;
 }
 
@@ -843,7 +1025,7 @@ async function applySimulation() {
     if (months.length > 0) {
       renderSimulationChart(months);
       const cajaFinal = data.result?.caja_final || months[months.length - 1]?.balance || months[months.length - 1]?.cumulative_balance;
-      document.getElementById('simResult').innerHTML = `
+      document.getElementById('simImpact').innerHTML = `
         <div class="stat-card green">
           <div class="stat-label">Caja Final Simulada</div>
           <div class="stat-value">${formatCurrencyShort(cajaFinal || 0)}</div>
@@ -955,10 +1137,11 @@ async function runMonteCarlo() {
   showGlobalLoading('Ejecutando Monte Carlo...', 'Simulando miles de escenarios probabilísticos');
 
   try {
+    const iterations = Math.min(5000, Math.max(100, parseInt(document.getElementById('mcIterations')?.value || '1000', 10) || 1000));
     const r = await fetch(`${API}/api/v2/companies/${state.companyId}/monte-carlo`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ iterations: 1000 })
+      body: JSON.stringify({ iterations })
     });
     const data = await r.json();
 
@@ -1018,6 +1201,7 @@ function pollMonteCarloProgress(taskId) {
 }
 
 function renderMonteCarloResults(data) {
+  const nivel = formatRiskLevel(data.nivel_riesgo?.nivel);
   // Stats
   document.getElementById('mcStats').innerHTML = `
     <div class="stat-card ${data.probabilidad_insolvencia_pct > 20 ? 'red' : 'green'}">
@@ -1026,7 +1210,7 @@ function renderMonteCarloResults(data) {
     </div>
     <div class="stat-card blue">
       <div class="stat-label">Nivel de Riesgo</div>
-      <div class="stat-value" style="font-size:18px;">${data.nivel_riesgo?.nivel || 'N/A'}</div>
+      <div class="stat-value" style="font-size:18px;">${escapeHtml(nivel)}</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">VaR 95%</div>
@@ -1064,20 +1248,48 @@ function renderMonteCarloResults(data) {
 // ============================================================================
 // Métricas
 // ============================================================================
+function formatRiskLevel(nivel) {
+  const key = String(nivel || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const map = { bajo: 'Bajo', moderado: 'Moderado', alto: 'Alto', critico: 'Crítico' };
+  if (map[key]) return map[key];
+  if (!nivel) return 'N/A';
+  const s = String(nivel);
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 async function loadMetrics() {
   if (!state.companyId) return;
   try {
-    const r = await fetch(`${API}/api/v2/companies/${state.companyId}/metrics`);
-    const data = await r.json();
-    renderMetrics(data);
+    const [mr, cr] = await Promise.all([
+      fetch(`${API}/api/v2/companies/${state.companyId}/metrics`),
+      fetch(`${API}/api/companies/${state.companyId}/cashflow`),
+    ]);
+    const data = await mr.json();
+    let cashflow = null;
+    if (cr.ok) cashflow = await cr.json();
+    renderMetrics(data, cashflow);
   } catch(e) {
     document.getElementById('metricsContent').innerHTML = '<div class="empty-state"><div class="empty-title">Sin métricas disponibles</div><div class="empty-desc">Genera el flujo de caja primero</div></div>';
   }
 }
 
-function renderMetrics(data) {
+function cashflowBaselines(cf) {
+  const months = cf?.months || cf?.meses || [];
+  if (!months.length) return { sales: 0, varCosts: 0, fixed: 0, caja: 0 };
+  const n = months.length;
+  const sales = months.reduce((s, m) => s + (m.income?.sales || m.income?.total || m.income_total || 0), 0) / n;
+  const varCosts = months.reduce((s, m) => s + (m.expenses?.variable_costs || 0), 0) / n;
+  const fixed = months.reduce((s, m) => s + (m.expenses?.fixed_costs || 0), 0) / n;
+  const last = months[n - 1];
+  const caja = last?.cumulative_balance ?? last?.balance ?? 0;
+  return { sales, varCosts, fixed, caja };
+}
+
+function renderMetrics(data, cashflow) {
   const container = document.getElementById('metricsContent');
   const m = data.metrics || data;
+  const base = cashflowBaselines(cashflow || state.cashflow || {});
+  state.metricsBaseline = base;
 
   container.innerHTML = `
     <div class="grid-3" style="margin-bottom:16px;">
@@ -1091,7 +1303,75 @@ function renderMetrics(data) {
       ${renderMetricCard('Financiamiento', m.necesidad_financiamiento?.necesita_financiamiento ? formatCurrency(m.necesidad_financiamiento?.monto || 0) : 'No necesita', m.necesidad_financiamiento?.mensaje || '', m.necesidad_financiamiento?.necesita_financiamiento ? 'yellow' : 'green')}
     </div>
     ${m.resumen_ejecutivo ? `<div class="card"><div class="card-title" style="color:${m.resumen_ejecutivo.color || 'var(--ccs-azul-oscuro)'}"><i class="fas fa-heartbeat"></i> Salud Financiera: ${m.resumen_ejecutivo.salud} (${m.resumen_ejecutivo.score}/100)</div></div>` : ''}
+    <div class="card" style="margin-top:16px;">
+      <div class="card-title"><i class="fas fa-question-circle" style="color:var(--ccs-azul);"></i> Qué pasaría si…</div>
+      <p class="slider-hint">Ingresa un escenario en montos. Calculamos el cambio respecto de tu flujo actual (${formatCurrency(base.sales)} ventas/mes, ${formatCurrency(base.fixed)} costos fijos).</p>
+      <div class="form-row">
+        <div class="form-group"><label>Ventas mensuales objetivo</label><input type="number" id="whatIfSales" value="${base.sales ? Math.round(base.sales) : ''}" placeholder="Ej: 8000000"></div>
+        <div class="form-group"><label>Costo variable (% de ventas)</label><input type="number" id="whatIfVarPct" step="0.1" placeholder="Ej: 40"></div>
+        <div class="form-group"><label>Costos fijos mensuales</label><input type="number" id="whatIfFixed" value="${base.fixed ? Math.round(base.fixed) : ''}" placeholder="Ej: 1500000"></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" onclick="runWhatIf()"><i class="fas fa-play"></i> Simular escenario</button>
+      </div>
+      <div id="whatIfResult"></div>
+    </div>
   `;
+}
+
+async function runWhatIf() {
+  if (!state.companyId) return;
+  const base = state.metricsBaseline || { sales: 0, varCosts: 0, fixed: 0 };
+  const sales = parseFloat(document.getElementById('whatIfSales')?.value || 0) || 0;
+  const varPct = parseFloat(document.getElementById('whatIfVarPct')?.value || 0);
+  const fixed = parseFloat(document.getElementById('whatIfFixed')?.value || 0) || 0;
+  if (!base.sales) {
+    notify('error', 'No hay un flujo de caja base para comparar');
+    return;
+  }
+  const sales_mult = sales > 0 ? sales / base.sales : 1;
+  let costs_mult = 1;
+  if (!Number.isNaN(varPct) && document.getElementById('whatIfVarPct').value !== '') {
+    const currentPct = base.sales ? (base.varCosts / base.sales) * 100 : 40;
+    costs_mult = currentPct > 0 ? varPct / currentPct : 1;
+  }
+  const fixed_costs_mult = base.fixed > 0 && fixed > 0 ? fixed / base.fixed : 1;
+  showGlobalLoading('Simulando escenario...', 'Qué pasaría si cambian ventas y costos');
+  try {
+    const r = await fetch(`${API}/api/v2/companies/${state.companyId}/custom-scenario`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nombre: 'Qué pasaría si',
+        sales_mult,
+        costs_mult,
+        growth_mult: 1,
+        fixed_costs_mult,
+      })
+    });
+    const data = await r.json();
+    hideGlobalLoading();
+    if (data.detail) {
+      notify('error', typeof data.detail === 'string' ? data.detail : 'Error en la simulación');
+      return;
+    }
+    const months = data.result?.months || data.result?.meses || [];
+    const cajaFinal = data.result?.caja_final || months[months.length - 1]?.balance || months[months.length - 1]?.cumulative_balance || 0;
+    const el = document.getElementById('whatIfResult');
+    if (el) {
+      el.innerHTML = `
+        <div class="grid-2" style="margin-top:12px;">
+          <div class="stat-card green"><div class="stat-label">Caja final del escenario</div><div class="stat-value">${formatCurrencyShort(cajaFinal)}</div></div>
+          <div class="stat-card blue"><div class="stat-label">Caja actual (referencia)</div><div class="stat-value">${formatCurrencyShort(base.caja || 0)}</div></div>
+        </div>
+        <p class="slider-hint">Ventas ×${sales_mult.toFixed(2)} · costos variables ×${costs_mult.toFixed(2)} · costos fijos ×${fixed_costs_mult.toFixed(2)}</p>
+      `;
+    }
+    notify('success', 'Escenario calculado');
+  } catch (e) {
+    hideGlobalLoading();
+    notify('error', 'No se pudo simular el escenario');
+  }
 }
 
 function renderMetricCard(label, value, sub, color) {
@@ -1492,77 +1772,151 @@ function escapeHtml(str) {
 async function loadAgents() {
   const grid = document.getElementById('agentsGrid');
   try {
-    const r = await fetch(`${API}/api/agents`);
-    const data = await r.json();
+    const [ar, sr, mr] = await Promise.all([
+      fetch(`${API}/api/agents`),
+      fetch(`${API}/api/skills/available`),
+      fetch(`${API}/api/models/available`),
+    ]);
+    const data = await ar.json();
+    const skillsData = sr.ok ? await sr.json() : { skills: [], max_per_agent: 8 };
+    const modelsData = mr.ok ? await mr.json() : { models: [] };
+    state.availableSkills = skillsData.skills || [];
+    state.maxAgentSkills = skillsData.max_per_agent || 8;
+    state.installedModels = modelsData.models || [];
     const agents = data.agents || [];
 
     let html = '';
+    html += `<div class="card" style="grid-column:1/-1; padding:16px; margin-bottom:4px;">
+      <p style="font-size:12px; color:var(--text-muted); line-height:1.5; margin:0;">
+        <strong style="color:var(--ccs-azul-oscuro);">Cómo se configura un agente.</strong>
+        El <em>system prompt</em> es la instrucción permanente del agente (rol y reglas).
+        La <em>temperatura</em> controla qué tan creativo es: 0 es más predecible, 1 más variado; para finanzas conviene 0.1–0.7.
+        Un <em>skill</em> es un bloque de instrucciones extra (máx. ${state.maxAgentSkills} por agente).
+        El modelo lo fija el perfil de RAM de este equipo: se listan los instalados solo como referencia.
+      </p>
+    </div>`;
+
     for (const agent of agents) {
       const agentId = agent.id;
       const skills = agent.skills || [];
       const skillContents = agent.skill_contents || {};
+      const roleLabel = agent.role_label || ({ interviewer: 'Entrevistador', analyst: 'Analista', simulator: 'Simulador', extractor: 'Extractor' }[agent.role] || 'Agente');
+      const extraModels = (state.installedModels || []).filter(Boolean);
 
       html += `<div class="card" style="padding:20px;" id="agent-card-${agentId}">`;
-      // Header
       html += `<div style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:16px;">`;
       html += `<div style="display:flex; align-items:center; gap:12px;">`;
       html += `<div style="width:40px; height:40px; border-radius:50%; background:var(--ccs-azul); display:flex; align-items:center; justify-content:center;"><i class="fas fa-robot" style="color:#fff; font-size:16px;"></i></div>`;
       html += `<div><div style="font-weight:700; font-size:14px; color:var(--ccs-azul-oscuro);">${escapeHtml(agent.name || agentId)}</div>`;
       html += `<div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${escapeHtml(agent.description || '')}</div></div>`;
       html += `</div>`;
-      html += `<span style="padding:3px 10px; background:rgba(0,213,58,0.1); color:var(--ccs-verde); border-radius:12px; font-size:10px; font-weight:600;">${escapeHtml(agent.role || 'agent')}</span>`;
+      html += `<span style="padding:3px 10px; background:rgba(0,213,58,0.1); color:var(--ccs-verde); border-radius:12px; font-size:10px; font-weight:600;">${escapeHtml(roleLabel)}</span>`;
       html += `</div>`;
 
-      // Model & Temperature
       html += `<div style="display:flex; gap:16px; margin-bottom:16px; flex-wrap:wrap;">`;
       html += `<div class="form-group" style="flex:1; min-width:180px;"><label style="font-size:11px;">Modelo</label>`;
-      html += `<input type="text" id="agent-model-${agentId}" value="Modelo del perfil" disabled style="font-size:12px;">`;
-      html += `<div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Visión: ${escapeHtml(agent.vision || 'no disponible en este perfil')}</div></div>`;
-      html += `<div class="form-group" style="width:100px;"><label style="font-size:11px;">Temperatura</label>`;
-      html += `<input type="number" id="agent-temp-${agentId}" value="${agent.temperature || 0.7}" min="0" max="2" step="0.1" style="font-size:12px;"></div>`;
+      html += `<select id="agent-model-${agentId}" disabled style="font-size:12px; opacity:0.85;">`;
+      html += `<option selected>Modelo del perfil</option>`;
+      extraModels.forEach(m => {
+        html += `<option disabled>${escapeHtml(m)} (no disponible en este perfil)</option>`;
+      });
+      html += `</select>`;
+      html += `<div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Bloqueado al modelo del perfil de RAM. Visión: ${escapeHtml(agent.vision || 'no disponible en este perfil')}</div></div>`;
+      html += `<div class="form-group" style="width:120px;"><label style="font-size:11px;">Temperatura</label>`;
+      html += `<input type="number" id="agent-temp-${agentId}" value="${agent.temperature || 0.7}" min="0" max="2" step="0.1" style="font-size:12px;">`;
+      html += `<div style="font-size:10px; color:var(--text-muted); margin-top:4px;">0 = preciso · 1 = creativo</div></div>`;
       html += `</div>`;
 
-      // System Prompt (completo, editable)
       html += `<div style="margin-bottom:16px;">`;
       html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">`;
       html += `<label style="margin:0; font-size:11px; font-weight:600;">System Prompt</label>`;
       html += `<button class="btn btn-sm" style="background:var(--ccs-azul); color:#fff; font-size:11px; padding:4px 12px;" onclick="saveAgentPrompt('${agentId}')">Guardar</button>`;
       html += `</div>`;
+      html += `<p class="slider-hint" style="margin-top:0;">Instrucción permanente: define el rol, el tono y lo que el agente no debe hacer.</p>`;
       html += `<textarea id="agent-prompt-${agentId}" style="min-height:180px; font-size:11px; font-family:monospace; line-height:1.5; padding:10px; resize:vertical;">${escapeHtml(agent.system_prompt || '')}</textarea>`;
       html += `</div>`;
 
-      // Skills editables
-      if (skills.length > 0) {
-        html += `<div><label style="margin-bottom:8px; display:block; font-size:11px; font-weight:600;">Skills (${skills.length})</label>`;
-        html += `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;">`;
-        for (const sname of skills) {
-          html += `<button class="btn btn-sm" style="background:rgba(0,37,88,0.08); color:var(--ccs-azul); border:1px solid rgba(0,37,88,0.2); font-size:10px;" onclick="toggleSkillEditor('${agentId}','${sname}')">&#9998; ${escapeHtml(sname)}</button>`;
-        }
-        html += `</div>`;
+      const maxSkills = agent.max_skills || state.maxAgentSkills || 8;
+      html += `<div><label style="margin-bottom:8px; display:block; font-size:11px; font-weight:600;">Skills (${skills.length}/${maxSkills})</label>`;
+      html += `<p class="slider-hint" style="margin-top:0;">Un skill es un módulo de conocimiento (p. ej. estacionalidad). Máximo ${maxSkills} para no saturar el contexto.</p>`;
+      html += `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;">`;
+      for (const sname of skills) {
+        html += `<span style="display:inline-flex; align-items:center; gap:4px;">`;
+        html += `<button class="btn btn-sm" style="background:rgba(0,37,88,0.08); color:var(--ccs-azul); border:1px solid rgba(0,37,88,0.2); font-size:10px;" onclick="toggleSkillEditor('${agentId}','${sname}')">&#9998; ${escapeHtml(sname)}</button>`;
+        html += `<button class="btn btn-sm" title="Quitar skill" style="font-size:10px; padding:3px 8px;" onclick="removeAgentSkill('${agentId}', ${JSON.stringify(sname)}, ${JSON.stringify(skills)})">&times;</button>`;
+        html += `</span>`;
+      }
+      html += `</div>`;
 
-        // Skill editors (hidden)
-        for (const skillName of skills) {
-          const skillContent = skillContents[skillName] || '';
-          html += `<div id="skillEditor_${agentId}_${skillName}" style="display:none; margin-bottom:12px; padding:12px; background:var(--bg-base); border-radius:8px; border:1px solid var(--border);">`;
-          html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">`;
-          html += `<div style="font-size:11px; font-weight:700; color:var(--ccs-azul);">${escapeHtml(skillName)}.md</div>`;
-          html += `<div style="display:flex; gap:6px;">`;
-          html += `<button class="btn btn-sm" style="background:var(--ccs-azul); color:#fff; font-size:10px; padding:3px 10px;" onclick="saveSkillContent('${agentId}','${skillName}')">Guardar</button>`;
-          html += `<button class="btn btn-sm" style="font-size:10px; padding:3px 10px;" onclick="toggleSkillEditor('${agentId}','${skillName}')">Cerrar</button>`;
-          html += `</div></div>`;
-          html += `<textarea id="skill_${agentId}_${skillName}" style="min-height:200px; font-size:11px; font-family:monospace; line-height:1.5; padding:8px;" placeholder="Escribe el contenido del skill...">${escapeHtml(skillContent)}</textarea>`;
-          html += `</div>`;
-        }
+      const unused = (state.availableSkills || []).filter(s => !skills.includes(s));
+      if (skills.length < maxSkills) {
+        html += `<div style="display:flex; gap:8px; align-items:flex-end; margin-bottom:12px;">`;
+        html += `<div class="form-group" style="flex:1; margin:0;"><label>Añadir skill</label><select id="add-skill-${agentId}">`;
+        html += `<option value="">Seleccionar...</option>`;
+        unused.forEach(s => { html += `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`; });
+        html += `</select></div>`;
+        html += `<button class="btn btn-primary btn-sm" onclick="addAgentSkill('${agentId}', ${JSON.stringify(skills)})">Añadir</button>`;
         html += `</div>`;
+      } else {
+        html += `<p class="slider-hint">Llegaste al máximo. Quita un skill para añadir otro.</p>`;
       }
 
-      html += `</div>`; // /card
+      for (const skillName of skills) {
+        const skillContent = skillContents[skillName] || '';
+        html += `<div id="skillEditor_${agentId}_${skillName}" style="display:none; margin-bottom:12px; padding:12px; background:var(--bg-base); border-radius:8px; border:1px solid var(--border);">`;
+        html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">`;
+        html += `<div style="font-size:11px; font-weight:700; color:var(--ccs-azul);">${escapeHtml(skillName)}.md</div>`;
+        html += `<div style="display:flex; gap:6px;">`;
+        html += `<button class="btn btn-sm" style="background:var(--ccs-azul); color:#fff; font-size:10px; padding:3px 10px;" onclick="saveSkillContent('${agentId}','${skillName}')">Guardar</button>`;
+        html += `<button class="btn btn-sm" style="font-size:10px; padding:3px 10px;" onclick="toggleSkillEditor('${agentId}','${skillName}')">Cerrar</button>`;
+        html += `</div></div>`;
+        html += `<textarea id="skill_${agentId}_${skillName}" style="min-height:200px; font-size:11px; font-family:monospace; line-height:1.5; padding:8px;" placeholder="Escribe el contenido del skill...">${escapeHtml(skillContent)}</textarea>`;
+        html += `</div>`;
+      }
+      html += `</div></div>`;
     }
 
     grid.innerHTML = html;
   } catch(e) {
     console.error('[SmartCaja] Error loading agents:', e);
     grid.innerHTML = '<div class="card" style="padding:20px;"><p style="color:var(--text-muted);">Error cargando agentes: ' + escapeHtml(e.message) + '</p></div>';
+  }
+}
+
+async function addAgentSkill(agentId, currentSkills) {
+  const sel = document.getElementById(`add-skill-${agentId}`);
+  const name = sel ? sel.value : '';
+  if (!name) { notify('error', 'Elige un skill'); return; }
+  const next = [...(currentSkills || [])];
+  if (!next.includes(name)) next.push(name);
+  if (next.length > (state.maxAgentSkills || 8)) {
+    notify('error', 'Máximo ' + (state.maxAgentSkills || 8) + ' skills por agente');
+    return;
+  }
+  await saveAgentSkills(agentId, next);
+}
+
+async function removeAgentSkill(agentId, skillName, currentSkills) {
+  const next = (currentSkills || []).filter(s => s !== skillName);
+  await saveAgentSkills(agentId, next);
+}
+
+async function saveAgentSkills(agentId, skills) {
+  try {
+    const resp = await fetch(`${API}/api/agents/${agentId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ skills })
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      notify('error', err.detail || 'No se pudo actualizar skills');
+      return;
+    }
+    notify('success', 'Skills actualizados');
+    loadAgents();
+  } catch (e) {
+    notify('error', 'Error: ' + e.message);
   }
 }
 

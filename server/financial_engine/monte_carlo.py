@@ -302,16 +302,16 @@ class MonteCarloSimulator:
     def _classify_risk(self, prob_insolvencia: float) -> dict:
         """Clasifica el nivel de riesgo según la probabilidad de insolvencia."""
         if prob_insolvencia < 5:
-            return {"nivel": "bajo", "color": "#22c55e", "emoji": "🟢",
+            return {"nivel": "Bajo", "color": "#22c55e", "emoji": "🟢",
                     "mensaje": "Riesgo bajo: la empresa tiene alta probabilidad de mantener solvencia."}
         elif prob_insolvencia < 15:
-            return {"nivel": "moderado", "color": "#facc15", "emoji": "🟡",
+            return {"nivel": "Moderado", "color": "#facc15", "emoji": "🟡",
                     "mensaje": "Riesgo moderado: hay escenarios donde la caja podría ser insuficiente."}
         elif prob_insolvencia < 30:
-            return {"nivel": "alto", "color": "#f97316", "emoji": "🟠",
+            return {"nivel": "Alto", "color": "#f97316", "emoji": "🟠",
                     "mensaje": "Riesgo alto: probabilidad significativa de problemas de liquidez."}
         else:
-            return {"nivel": "critico", "color": "#dc2626", "emoji": "🔴",
+            return {"nivel": "Crítico", "color": "#dc2626", "emoji": "🔴",
                     "mensaje": "Riesgo crítico: alta probabilidad de insolvencia. Se requiere acción inmediata."}
 
     def run_scenario_comparison(self, scenarios_params: List[dict]) -> dict:

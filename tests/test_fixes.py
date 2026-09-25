@@ -200,6 +200,61 @@ def test_system_prompt_includes_all_numbers():
     print("✓ test_system_prompt_includes_all_numbers PASSED")
 
 
+def test_company_seed_marks_topics_not_salaries():
+    from interview_manager import InterviewManager
+
+    im = InterviewManager(company_data={
+        "name": "Panadería Don Pedro",
+        "sector": "alimentos",
+        "country": "Chile",
+        "currency": "CLP",
+        "initial_cash": 5000000,
+        "employees": 4,
+    })
+    assert "tipo_negocio" in im.topics_covered
+    assert "pais_moneda" in im.topics_covered
+    assert "caja_inicial" in im.topics_covered
+    assert "salarios" not in im.topics_covered
+    progress = im.get_interview_progress()
+    assert progress["covered"] >= 3
+    assert progress["progress_pct"] == round(progress["covered"] / progress["total_topics"] * 100, 1)
+    next_q = im.get_next_questions(1)
+    assert next_q[0]["id"] == "productos_servicios"
+    print("✓ test_company_seed_marks_topics_not_salaries PASSED")
+
+
+def test_interview_follows_panel_order_and_focus():
+    from interview_manager import InterviewManager, INTERVIEW_FLOW
+
+    im = InterviewManager(company_data={"name": "Test", "sector": "comercio"})
+    questions = im.get_next_questions(5)
+    ids = [q["id"] for q in questions]
+    assert ids[0] in INTERVIEW_FLOW
+    assert "tipo_negocio" not in ids
+    im.focus_topic = "salarios"
+    focused = im.get_next_questions(1)
+    assert focused[0]["id"] == "salarios"
+    prompt = im.generate_system_prompt()
+    assert "FORMULARIO" in prompt or "confirmar" in prompt.lower()
+    assert "Generar Cashflow" in prompt or "botón" in prompt.lower()
+    print("✓ test_interview_follows_panel_order_and_focus PASSED")
+
+
+def test_glossary_and_risk_label():
+    from interview_manager import GLOSSARY, interview_panel
+    from financial_engine.monte_carlo import MonteCarloSimulator
+
+    assert "costos_fijos" in GLOSSARY
+    assert GLOSSARY["salarios"]["calculator"] == "salary_chile"
+    panel = interview_panel()
+    assert len(panel) == 5
+    assert panel[0]["topics"][0]["id"] == "tipo_negocio"
+    stub = MonteCarloSimulator.__new__(MonteCarloSimulator)
+    assert stub._classify_risk(40)["nivel"] == "Crítico"
+    assert stub._classify_risk(2)["nivel"] == "Bajo"
+    print("✓ test_glossary_and_risk_label PASSED")
+
+
 # ============================================================================
 # Run all tests
 # ============================================================================
@@ -213,4 +268,7 @@ if __name__ == "__main__":
     test_chips_percentage_question()
     test_chips_frequency_question()
     test_system_prompt_includes_all_numbers()
+    test_company_seed_marks_topics_not_salaries()
+    test_interview_follows_panel_order_and_focus()
+    test_glossary_and_risk_label()
     print("\n✅ ALL TESTS PASSED")

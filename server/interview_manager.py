@@ -110,6 +110,285 @@ INTERVIEW_TOPICS = [
      "quick_options": ["Chile (CLP)", "México (MXN)", "Colombia (COP)", "Argentina (ARS)", "Perú (PEN)", "España (EUR)"]},
 ]
 
+# Orden de la entrevista (igual que el panel). No se reordena por prioridad.
+INTERVIEW_STAGES = [
+    {
+        "id": "negocio",
+        "label": "1. Tu negocio",
+        "intro": "Empezamos por entender a qué te dedicas, qué ofreces y a quién le vendes.",
+        "topics": ["tipo_negocio", "productos_servicios", "segmentos_clientes", "pais_moneda"],
+    },
+    {
+        "id": "ingresos",
+        "label": "2. Cómo entra el dinero",
+        "intro": "Ahora vemos cómo cobras: precios, volumen, frecuencia y si hay temporadas.",
+        "topics": ["modelo_ingresos", "precios_volumen", "frecuencia_compra", "crecimiento", "churn_recompra", "estacionalidad"],
+    },
+    {
+        "id": "costos",
+        "label": "3. Costos y personas",
+        "intro": "Pasamos a lo que sale todos los meses: costos de producir, fijos, sueldos e impuestos.",
+        "topics": ["costos_variables", "costos_fijos", "salarios", "marketing", "impuestos"],
+    },
+    {
+        "id": "flujo",
+        "label": "4. Caja y plazos",
+        "intro": "Revisamos cuándo cobras, cuándo pagas, inventario, caja de hoy y deudas.",
+        "topics": ["plazos_cobro", "plazos_pago", "inventario", "caja_inicial", "deuda", "capex"],
+    },
+    {
+        "id": "riesgos",
+        "label": "5. Riesgos",
+        "intro": "Cerramos con los riesgos que más te preocupan para los próximos meses.",
+        "topics": ["riesgos"],
+    },
+]
+
+INTERVIEW_FLOW = [tid for stage in INTERVIEW_STAGES for tid in stage["topics"]]
+
+TOPIC_LABELS = {
+    "tipo_negocio": "Tipo de negocio",
+    "productos_servicios": "Productos y servicios",
+    "segmentos_clientes": "Segmentos de clientes",
+    "pais_moneda": "País y moneda",
+    "modelo_ingresos": "Modelo de ingresos",
+    "precios_volumen": "Precios y volúmenes",
+    "frecuencia_compra": "Frecuencia de compra",
+    "crecimiento": "Crecimiento esperado",
+    "churn_recompra": "Recompra y churn",
+    "estacionalidad": "Estacionalidad",
+    "costos_variables": "Costos variables",
+    "costos_fijos": "Costos fijos",
+    "salarios": "Salarios",
+    "marketing": "Marketing",
+    "impuestos": "Impuestos",
+    "plazos_cobro": "Plazos de cobro",
+    "plazos_pago": "Plazos de pago",
+    "inventario": "Inventario",
+    "caja_inicial": "Caja inicial",
+    "deuda": "Deuda",
+    "capex": "Inversiones (CAPEX)",
+    "riesgos": "Riesgos principales",
+}
+
+TOPIC_ICONS = {
+    "tipo_negocio": "fa-store",
+    "productos_servicios": "fa-box",
+    "segmentos_clientes": "fa-users",
+    "pais_moneda": "fa-globe",
+    "modelo_ingresos": "fa-dollar-sign",
+    "precios_volumen": "fa-tag",
+    "frecuencia_compra": "fa-redo",
+    "crecimiento": "fa-chart-line",
+    "churn_recompra": "fa-user-minus",
+    "estacionalidad": "fa-calendar",
+    "costos_variables": "fa-receipt",
+    "costos_fijos": "fa-building",
+    "salarios": "fa-user-tie",
+    "marketing": "fa-bullhorn",
+    "impuestos": "fa-balance-scale",
+    "plazos_cobro": "fa-hand-holding-usd",
+    "plazos_pago": "fa-file-invoice-dollar",
+    "inventario": "fa-boxes",
+    "caja_inicial": "fa-piggy-bank",
+    "deuda": "fa-credit-card",
+    "capex": "fa-tools",
+    "riesgos": "fa-shield-alt",
+}
+
+GLOSSARY = {
+    "tipo_negocio": {
+        "title": "Tipo de negocio",
+        "definition": "El rubro o actividad principal de tu empresa (comercio, servicios, manufactura, etc.). Define cómo se ven tus ingresos y costos.",
+        "formula": None,
+        "calculator": None,
+    },
+    "productos_servicios": {
+        "title": "Productos y servicios",
+        "definition": "Lo que vendes. Sirve para estimar precio promedio y costo de producir o prestar cada oferta.",
+        "formula": None,
+        "calculator": None,
+    },
+    "segmentos_clientes": {
+        "title": "Segmentos de clientes",
+        "definition": "Grupos de compradores (personas, empresas, gobierno). Afecta plazos de cobro y frecuencia de compra.",
+        "formula": None,
+        "calculator": None,
+    },
+    "pais_moneda": {
+        "title": "País y moneda",
+        "definition": "País donde operas y moneda del flujo de caja. Impuestos, sueldos y costos se expresan en esa moneda.",
+        "formula": None,
+        "calculator": None,
+    },
+    "modelo_ingresos": {
+        "title": "Modelo de ingresos",
+        "definition": "Cómo cobras: venta directa, suscripción, proyecto o comisión. Cambia la previsibilidad de la caja.",
+        "formula": None,
+        "calculator": None,
+    },
+    "precios_volumen": {
+        "title": "Precios y volúmenes",
+        "definition": "Precio promedio por venta y cuántas ventas haces en un mes. Es la base de tus ingresos.",
+        "formula": "Ingreso mensual ≈ precio promedio × unidades (o clientes) al mes",
+        "calculator": None,
+    },
+    "frecuencia_compra": {
+        "title": "Frecuencia de compra",
+        "definition": "Cada cuánto vuelve un cliente a comprar. Influye en la estabilidad de las ventas mes a mes.",
+        "formula": None,
+        "calculator": None,
+    },
+    "crecimiento": {
+        "title": "Crecimiento esperado",
+        "definition": "Variación estimada de ventas en 12 meses. Se aplica de forma gradual en la proyección.",
+        "formula": "Venta mes n ≈ venta actual × (1 + crecimiento anual)^(n/12)",
+        "calculator": None,
+    },
+    "churn_recompra": {
+        "title": "Recompra y churn",
+        "definition": "Churn es el porcentaje de clientes que dejas de atender en un período. La recompra es lo inverso.",
+        "formula": "Clientes fin de mes ≈ clientes inicio × (1 − churn mensual)",
+        "calculator": None,
+    },
+    "estacionalidad": {
+        "title": "Estacionalidad",
+        "definition": "Meses en que vendes más o menos que el promedio (verano, Navidad, Fiestas Patrias, etc.).",
+        "formula": "Venta del mes = venta promedio × factor del mes (ej. 1,20 en diciembre)",
+        "calculator": None,
+    },
+    "costos_variables": {
+        "title": "Costos variables",
+        "definition": "Gastos que suben o bajan con las ventas: materias primas, mercadería, comisiones, despacho.",
+        "formula": "% costo variable = (costo de producir o comprar / ventas) × 100",
+        "calculator": "variable_pct",
+    },
+    "costos_fijos": {
+        "title": "Costos fijos",
+        "definition": "Gastos que pagas aunque vendas poco: arriendo, servicios básicos, seguros, software, contador.",
+        "formula": "Costo fijo mensual = arriendo + servicios + seguros + software + otros fijos",
+        "calculator": "fixed_costs",
+    },
+    "salarios": {
+        "title": "Salarios",
+        "definition": "Costo total de personas al mes, incluido tu sueldo si te lo pagas. En Chile el sueldo líquido es lo que recibe la persona; el bruto es lo que cuesta antes de descuentos legales.",
+        "formula": "Costo mensual de personal ≈ suma de sueldos brutos + leyes sociales a cargo de la empresa",
+        "calculator": "salary_chile",
+    },
+    "marketing": {
+        "title": "Marketing",
+        "definition": "Inversión mensual en publicidad, redes, ferias o agencia. Es un gasto que puedes ajustar mes a mes.",
+        "formula": None,
+        "calculator": None,
+    },
+    "impuestos": {
+        "title": "Impuestos",
+        "definition": "En Chile el IVA es 19% sobre ventas gravadas. Además puede haber impuesto a la renta sobre la utilidad.",
+        "formula": "IVA débito ≈ ventas gravadas × 19%. IVA a pagar ≈ débito − crédito (compras)",
+        "calculator": None,
+    },
+    "plazos_cobro": {
+        "title": "Plazos de cobro",
+        "definition": "Días que tardas en recibir el pago del cliente. A más días, más caja queda 'en la calle'.",
+        "formula": "Cuentas por cobrar ≈ ventas a crédito × (días de cobro / 30)",
+        "calculator": None,
+    },
+    "plazos_pago": {
+        "title": "Plazos de pago",
+        "definition": "Días que te dan tus proveedores para pagar. Ayuda a la caja si cobras antes de pagar.",
+        "formula": None,
+        "calculator": None,
+    },
+    "inventario": {
+        "title": "Inventario",
+        "definition": "Mercadería o insumos que tienes en stock. Inmoviliza caja hasta que se vende.",
+        "formula": "Días de inventario ≈ (stock / costo de ventas mensual) × 30",
+        "calculator": None,
+    },
+    "caja_inicial": {
+        "title": "Caja inicial",
+        "definition": "Dinero disponible hoy (cuenta corriente + efectivo) para operar. Es el punto de partida del flujo.",
+        "formula": "Caja mes 1 = caja inicial + ingresos del mes − egresos del mes",
+        "calculator": None,
+    },
+    "deuda": {
+        "title": "Deuda",
+        "definition": "Cuotas mensuales de créditos vigentes. Salen de la caja aunque las ventas bajen.",
+        "formula": None,
+        "calculator": None,
+    },
+    "capex": {
+        "title": "Inversiones (CAPEX)",
+        "definition": "Compras grandes de un solo golpe: equipos, local, vehículos. No es un gasto mensual típico; sale de caja cuando ocurre.",
+        "formula": None,
+        "calculator": None,
+    },
+    "riesgos": {
+        "title": "Riesgos principales",
+        "definition": "Hechos que podrían empeorar la caja: baja demanda, alza de costos, competencia, personal, regulación.",
+        "formula": None,
+        "calculator": None,
+    },
+    "break_even": {
+        "title": "Punto de equilibrio",
+        "definition": "Nivel de ventas con el que cubres costos fijos y variables. Debajo de ese nivel, pierdes caja.",
+        "formula": "Ventas de equilibrio = costos fijos / (1 − % costo variable)",
+        "calculator": None,
+    },
+    "margen_bruto": {
+        "title": "Margen bruto",
+        "definition": "Lo que queda de las ventas después de pagar el costo de producir o comprar lo vendido.",
+        "formula": "Margen bruto % = (ventas − costos variables) / ventas × 100",
+        "calculator": "variable_pct",
+    },
+    "runway": {
+        "title": "Runway",
+        "definition": "Meses que puedes operar con la caja actual si el flujo sigue negativo.",
+        "formula": "Runway ≈ caja actual / |pérdida mensual promedio|",
+        "calculator": None,
+    },
+    "monte_carlo": {
+        "title": "Simulación Monte Carlo",
+        "definition": "Repite tu flujo miles de veces con variaciones aleatorias (ventas, costos) para estimar la probabilidad de quedarte sin caja.",
+        "formula": "Prob. insolvencia ≈ escenarios con caja < 0 / total de iteraciones × 100",
+        "calculator": None,
+    },
+    "sueldo_liquido": {
+        "title": "Sueldo líquido y bruto (Chile)",
+        "definition": "Bruto es el sueldo pactado. Líquido es lo que llega a la cuenta tras AFP, salud, cesantía e impuesto único. Esta calculadora es una estimación educativa, no una liquidación oficial.",
+        "formula": "Líquido ≈ bruto − AFP (~10,77%) − salud (7%) − cesantía (0,6%) − impuesto único",
+        "calculator": "salary_chile",
+    },
+}
+
+
+def stage_for_topic(topic_id: str) -> Optional[dict]:
+    for stage in INTERVIEW_STAGES:
+        if topic_id in stage["topics"]:
+            return stage
+    return None
+
+
+def interview_panel() -> List[dict]:
+    """Estructura del panel de temas, agrupada por etapa."""
+    panel = []
+    for stage in INTERVIEW_STAGES:
+        panel.append({
+            "id": stage["id"],
+            "label": stage["label"],
+            "intro": stage["intro"],
+            "topics": [
+                {
+                    "id": tid,
+                    "label": TOPIC_LABELS.get(tid, tid),
+                    "icon": TOPIC_ICONS.get(tid, "fa-circle"),
+                }
+                for tid in stage["topics"]
+            ],
+        })
+    return panel
+
+
 # Mapeo de campos extraídos → temas cubiertos
 FIELD_TO_TOPIC = {}
 for topic in INTERVIEW_TOPICS:
@@ -186,36 +465,58 @@ class InterviewManager:
     """
 
     def __init__(self, company_data: dict = None, session_messages: List[dict] = None,
-                 persisted_data: dict = None, persisted_topics: list = None):
+                 persisted_data: dict = None, persisted_topics: list = None,
+                 focus_topic: str = None):
         self.company_data = company_data or {}
         self.session_messages = session_messages or []
         self.collected_data: Dict[str, Any] = persisted_data.copy() if persisted_data else {}
         self.assumptions: List[dict] = []
         self.topics_covered: List[str] = list(persisted_topics) if persisted_topics else []
+        self.focus_topic: Optional[str] = focus_topic if focus_topic in TOPIC_LABELS else None
+        self.form_seeded_fields: List[str] = []
 
         # Intentar extraer datos ya conocidos de la empresa
         if company_data:
             self._extract_known_data()
 
+    def _seed_field(self, field: str, value):
+        """Guarda un dato del formulario solo si la entrevista aún no lo sobreescribió."""
+        current = self.collected_data.get(field)
+        if current in (None, "", [], {}):
+            self.collected_data[field] = value
+        if field not in self.form_seeded_fields:
+            self.form_seeded_fields.append(field)
+
     def _extract_known_data(self):
-        """Extrae datos ya conocidos de la información de la empresa."""
+        """Extrae datos ya conocidos de la información de la empresa.
+        Estos datos se marcan cubiertos para que el panel muestre checks de inmediato
+        y la entrevista pida confirmarlos, no volver a preguntarlos desde cero.
+        El número de empleados NO cubre salarios: solo contextualiza esa pregunta.
+        """
         if self.company_data.get("name"):
-            self.collected_data["name"] = self.company_data["name"]
+            self._seed_field("name", self.company_data["name"])
         if self.company_data.get("sector"):
-            self.collected_data["sector"] = self.company_data["sector"]
+            self._seed_field("sector", self.company_data["sector"])
             self._mark_topic_from_field("sector")
         if self.company_data.get("description"):
-            self.collected_data["description"] = self.company_data["description"]
-        if self.company_data.get("country"):
-            self.collected_data["country"] = self.company_data["country"]
-        if self.company_data.get("currency"):
-            self.collected_data["currency"] = self.company_data["currency"]
+            self._seed_field("description", self.company_data["description"])
+        if self.company_data.get("size"):
+            self._seed_field("size", self.company_data["size"])
+        if self.company_data.get("age"):
+            self._seed_field("age", self.company_data["age"])
+        country = self.company_data.get("country")
+        currency = self.company_data.get("currency")
+        if country:
+            self._seed_field("country", country)
+        if currency:
+            self._seed_field("currency", currency)
+        if country or currency:
             self._mark_topic_from_field("country")
         if self.company_data.get("initial_cash") and self.company_data["initial_cash"] > 0:
-            self.collected_data["initial_cash"] = self.company_data["initial_cash"]
+            self._seed_field("initial_cash", self.company_data["initial_cash"])
             self._mark_topic_from_field("initial_cash")
         if self.company_data.get("employees") and self.company_data["employees"] > 0:
-            self.collected_data["employees"] = self.company_data["employees"]
+            self._seed_field("employees", self.company_data["employees"])
 
     def _mark_topic_from_field(self, field: str):
         """Marca el tema correspondiente a un campo como cubierto."""
@@ -235,37 +536,71 @@ class InterviewManager:
                     self.topics_covered.append(topic_id)
 
     def get_next_questions(self, max_questions: int = 8) -> List[dict]:
-        """
-        Determina las próximas preguntas a hacer, priorizadas por impacto.
-        Retorna máximo max_questions preguntas.
-        """
-        # Sincronizar topics antes de calcular pendientes
+        """Próximas preguntas en el orden del panel (etapas), no por prioridad."""
         self._sync_topics_from_data()
+        by_id = {t["id"]: t for t in INTERVIEW_TOPICS}
+        ordered: List[dict] = []
 
-        pending_topics = [
-            t for t in INTERVIEW_TOPICS
-            if t["id"] not in self.topics_covered
-        ]
+        if self.focus_topic and self.focus_topic in by_id:
+            ordered.append(by_id[self.focus_topic])
 
-        # Ordenar por prioridad (menor número = más importante)
-        pending_topics.sort(key=lambda t: t["priority"])
+        for tid in INTERVIEW_FLOW:
+            topic = by_id.get(tid)
+            if not topic:
+                continue
+            if topic["id"] in self.topics_covered and topic["id"] != self.focus_topic:
+                continue
+            if topic not in ordered:
+                ordered.append(topic)
 
-        # Tomar las primeras max_questions
-        next_topics = pending_topics[:max_questions]
+        for topic in INTERVIEW_TOPICS:
+            if topic["id"] not in self.topics_covered and topic not in ordered:
+                ordered.append(topic)
 
         questions = []
-        for topic in next_topics:
-            q = {
+        for topic in ordered[:max_questions]:
+            questions.append({
                 "id": topic["id"],
                 "category": topic["category"],
-                "question": topic["question_template"],
+                "question": self._question_for_topic(topic),
                 "priority": topic["priority"],
                 "fields": topic["fields"],
                 "quick_options": self._get_contextual_options(topic),
-            }
-            questions.append(q)
-
+                "label": TOPIC_LABELS.get(topic["id"], topic["id"]),
+                "already_covered": topic["id"] in self.topics_covered,
+            })
         return questions
+
+    def _question_for_topic(self, topic: dict) -> str:
+        """Si el dato vino del formulario, pide confirmar o cambiar, no repetir desde cero."""
+        tid = topic["id"]
+        label = TOPIC_LABELS.get(tid, tid)
+        if tid == "tipo_negocio" and self.collected_data.get("sector"):
+            desc = self.collected_data.get("description") or ""
+            extra = f" Descripción: {desc}." if desc else ""
+            return (
+                f"Al crear la empresa registramos el sector «{self.collected_data['sector']}».{extra} "
+                "¿Lo confirmas o lo ajustamos?"
+            )
+        if tid == "pais_moneda" and (self.collected_data.get("country") or self.collected_data.get("currency")):
+            country = self.collected_data.get("country") or "—"
+            currency = self.collected_data.get("currency") or "—"
+            return f"Registramos país {country} y moneda {currency}. ¿Confirmas o quieres cambiarlo?"
+        if tid == "caja_inicial" and self.collected_data.get("initial_cash"):
+            cash = self.collected_data["initial_cash"]
+            return f"Registramos una caja inicial de ${cash:,.0f}. ¿La confirmas o la actualizamos?"
+        if tid == "salarios" and self.collected_data.get("employees"):
+            n = self.collected_data["employees"]
+            return (
+                f"Indicaste {n} empleado(s) al crear la empresa. "
+                "¿Confirmas esa dotación y cuál es la nómina mensual total (incluye tu sueldo si te lo pagas)?"
+            )
+        if tid in self.topics_covered:
+            return (
+                f"Ya cubrimos «{label}». ¿Confirmas el dato que tenemos o quieres cambiarlo? "
+                f"{topic['question_template']}"
+            )
+        return topic["question_template"]
 
     def _get_contextual_options(self, topic: dict) -> List[str]:
         """Genera opciones rápidas contextualizadas al negocio."""
@@ -300,30 +635,44 @@ class InterviewManager:
         return base_options
 
     def get_interview_progress(self) -> dict:
-        """Retorna el progreso de la entrevista basado en datos reales recopilados."""
-        # Sincronizar topics desde datos
+        """Progreso visible = temas cubiertos / total del panel (conteo, no ponderado)."""
         self._sync_topics_from_data()
 
         total = len(INTERVIEW_TOPICS)
         covered = len(self.topics_covered)
+        items_pct = round(covered / total * 100, 1) if total else 0
 
-        # Calcular progreso ponderado (temas de prioridad alta pesan más)
         total_weight = sum(6 - t["priority"] for t in INTERVIEW_TOPICS)
         covered_weight = sum(
             6 - t["priority"] for t in INTERVIEW_TOPICS
             if t["id"] in self.topics_covered
         )
         weighted_pct = round(covered_weight / total_weight * 100, 1) if total_weight > 0 else 0
+        next_topic = self._get_next_flow_topic()
+        current = self.focus_topic or next_topic
+        stage = stage_for_topic(current) if current else None
 
         return {
             "total_topics": total,
             "covered": covered,
             "remaining": total - covered,
-            "progress_pct": weighted_pct,
+            "progress_pct": items_pct,
+            "weighted_pct": weighted_pct,
             "topics_covered": self.topics_covered,
             "has_enough_data": self._has_minimum_data(),
             "is_complete": self._is_interview_complete(),
-            "next_priority_topic": self._get_next_priority_topic(),
+            "next_priority_topic": next_topic,
+            "current_topic": current,
+            "current_stage": stage["id"] if stage else None,
+            "current_stage_label": stage["label"] if stage else None,
+            "current_stage_intro": stage["intro"] if stage else None,
+            "stages": interview_panel(),
+            "can_generate": self._has_minimum_data(),
+            "complete_hint": (
+                f"{covered} de {total} temas. El 100% es cubrir todos. "
+                "No es obligatorio: puedes generar un primer flujo cuando haya datos mínimos "
+                "(negocio, precios, costos y caja) con el botón Generar Cashflow."
+            ),
         }
 
     def _has_minimum_data(self) -> bool:
@@ -341,11 +690,17 @@ class InterviewManager:
         return covered_priority >= len(priority_1_2_topics) * 0.7
 
     def _get_next_priority_topic(self) -> Optional[str]:
-        """Retorna el próximo tema más importante pendiente."""
+        """Próximo tema pendiente, en el orden del panel."""
+        return self._get_next_flow_topic()
+
+    def _get_next_flow_topic(self) -> Optional[str]:
+        """Retorna el próximo tema pendiente siguiendo las etapas del panel."""
         self._sync_topics_from_data()
-        pending = [t for t in INTERVIEW_TOPICS if t["id"] not in self.topics_covered]
-        pending.sort(key=lambda t: t["priority"])
-        return pending[0]["id"] if pending else None
+        for tid in INTERVIEW_FLOW:
+            if tid not in self.topics_covered:
+                return tid
+        pending = [t["id"] for t in INTERVIEW_TOPICS if t["id"] not in self.topics_covered]
+        return pending[0] if pending else None
 
     def mark_topic_covered(self, topic_id: str, extracted_data: dict = None):
         """Marca un tema como cubierto y guarda los datos extraídos."""
@@ -524,37 +879,58 @@ class InterviewManager:
 
         known_str = "\n".join(f"- {info}" for info in known_info) if known_info else "- Aún no se ha recopilado información"
 
-        # Determinar qué preguntar a continuación
+        form_lines = []
+        cd = self.company_data or {}
+        if cd.get("sector"):
+            form_lines.append(f"Sector: {cd['sector']}")
+        if cd.get("description"):
+            form_lines.append(f"Descripción: {cd['description']}")
+        if cd.get("employees"):
+            form_lines.append(f"Empleados: {cd['employees']} (aún falta la nómina mensual)")
+        if cd.get("initial_cash"):
+            form_lines.append(f"Caja inicial: ${cd['initial_cash']:,.0f}")
+        if cd.get("country"):
+            form_lines.append(f"País: {cd['country']}")
+        if cd.get("currency"):
+            form_lines.append(f"Moneda: {cd['currency']}")
+        form_str = "\n".join(f"- {line}" for line in form_lines) if form_lines else "- Sin datos extra del formulario"
+
         next_questions = self.get_next_questions(8)
-
-        # Estado de completitud
         completeness_msg = ""
-        if progress["is_complete"]:
+        if progress["is_complete"] or progress["has_enough_data"]:
             completeness_msg = """
-=== ENTREVISTA COMPLETA ===
-IMPORTANTE: Ya tienes SUFICIENTE información para generar el cashflow.
-DEBES informar al usuario que ya puedes generar su flujo de caja.
-Di algo como: "Excelente, ya tenemos toda la información necesaria. ¿Quieres que genere tu flujo de caja ahora?"
-Si el usuario acepta, responde EXACTAMENTE: "Perfecto, voy a generar tu flujo de caja ahora."
-"""
-        elif progress["has_enough_data"]:
-            completeness_msg = """
-NOTA: Ya tienes datos mínimos para un cashflow básico. Puedes sugerir al usuario que genere
-un primer borrador, o continuar la entrevista para mayor precisión.
+=== DATOS SUFICIENTES ===
+Ya hay información para un primer flujo de caja. NUNCA digas que lo vas a generar tú.
+Indica que puede pulsar el botón verde «Generar Cashflow» cuando quiera, o seguir afinando temas.
+La entrevista NO es 100% obligatoria.
 """
 
-        # Solo la primera pregunta pendiente para focalizar
         next_q = next_questions[0] if next_questions else None
         next_q_str = next_q['question'] if next_q else "Ya cubrimos todos los temas."
+        next_label = next_q.get("label") if next_q else ""
+        stage_label = progress.get("current_stage_label") or ""
+        stage_intro = progress.get("current_stage_intro") or ""
+        focus_note = ""
+        if self.focus_topic:
+            focus_note = (
+                f"El usuario ELIGIÓ el tema «{TOPIC_LABELS.get(self.focus_topic, self.focus_topic)}». "
+                "Pregunta SOLO sobre ese tema. Si ya hay un dato del formulario, pide confirmar o cambiarlo."
+            )
 
-        prompt = f"""Eres un analista financiero amigable que entrevista al dueño de una PYME para construir su modelo de flujo de caja.
+        prompt = f"""Eres un analista financiero amigable de la Cámara de Comercio de Santiago (CCS) que entrevista al dueño de una PYME para construir su modelo de flujo de caja.
+
+=== DATOS DEL FORMULARIO DE CREACIÓN (ya registrados) ===
+NO los preguntes como si no existieran. Pide CONFIRMAR o CAMBIAR. Si el usuario confirma, sigue al siguiente tema del panel.
+{form_str}
 
 === DATOS CONFIRMADOS DEL NEGOCIO (MEMORIA) ===
 Estos son los datos que el usuario YA te dio. NUNCA los olvides ni los contradigas.
 Si necesitas referenciar alguno, usa el valor exacto que aparece aquí.
 {known_str}
 
-PROGRESO: {progress['covered']}/{progress['total_topics']} temas cubiertos ({progress['progress_pct']}%)
+PROGRESO: {progress['covered']}/{progress['total_topics']} temas ({progress['progress_pct']}%). El 100% es cubrir todos los temas del panel.
+ETAPA ACTUAL: {stage_label}
+HILO CONDUCTOR (úsalo como puente, una frase breve, no un párrafo): {stage_intro}
 {completeness_msg}
 === REGLAS ABSOLUTAS (NUNCA las violes) ===
 
@@ -570,8 +946,13 @@ PROGRESO: {progress['covered']}/{progress['total_topics']} temas cubiertos ({pro
    Ejemplo: "Entendido, $1.500.000 en costos fijos mensuales."
 10. Si un dato parece incoherente con los anteriores, pregúntale al usuario para confirmar.
     Ejemplo: "Mencionaste que vendes 200 panes a $3.500, eso sería ~$700.000/mes en ventas. ¿Es correcto?"
+11. Sigue el orden del panel (negocio → ingresos → costos → caja → riesgos) salvo que el usuario elija otro tema.
+12. NUNCA ofrezcas generar el cashflow tú mismo ni digas que lo estás generando. El usuario pulsa «Generar Cashflow».
+13. Si el usuario dice «sí», «ok» o «listo» mientras preguntas un tema, trátalo como confirmación de ESE tema, no como orden de generar el flujo.
 
-PRÓXIMO TEMA A PREGUNTAR:
+{focus_note}
+
+PRÓXIMO TEMA A PREGUNTAR ({next_label}):
 {next_q_str}
 
 FORMATO OBLIGATORIO DE TU RESPUESTA:
@@ -969,7 +1350,7 @@ SEGURIDAD:
             quantity_words = ["cuánto", "cuántos", "cuántas", "qué monto", "qué valor"]
             if not any(w in resp_lower for w in quantity_words):
                 if is_confirmation or "genere" in resp_lower or "genero" in resp_lower:
-                    return ["Sí, genera el cashflow", "No, quiero agregar más datos", "Sí, está correcto"]
+                    return ["Usaré el botón Generar Cashflow", "Quiero agregar más datos", "Sí, está correcto"]
                 if "deuda" in resp_lower or "crédito" in resp_lower or "préstamo" in resp_lower:
                     return ["Sí, tengo deudas", "No, sin deudas", "Muy poca deuda"]
                 if "inventario" in resp_lower or "stock" in resp_lower:

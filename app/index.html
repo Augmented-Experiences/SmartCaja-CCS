@@ -274,9 +274,22 @@
     .global-loading-content .loading-sublabel { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
 
     /* ===== INTERVIEW TOPICS ===== */
-    .topic-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; margin-bottom: 4px; background: rgba(58,137,218,0.04); border: 1px solid var(--border); font-size: 11px; color: var(--text-muted); }
+    .topic-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; margin-bottom: 4px; background: rgba(58,137,218,0.04); border: 1px solid var(--border); font-size: 11px; color: var(--text-muted); cursor: pointer; text-align: left; width: 100%; font-family: inherit; }
+    .topic-item:hover { border-color: var(--ccs-azul); background: rgba(58,137,218,0.10); color: var(--ccs-azul-oscuro); }
     .topic-item.covered { background: rgba(0,213,58,0.06); border-color: rgba(0,213,58,0.3); color: #166534; }
+    .topic-item.current { border-color: var(--ccs-azul); background: rgba(58,137,218,0.14); color: var(--ccs-azul-oscuro); font-weight: 700; box-shadow: 0 0 0 2px rgba(58,137,218,0.18); }
     .topic-item .topic-icon { width: 16px; text-align: center; font-size: 11px; }
+    .topic-item .topic-help { margin-left: auto; border: 0; background: transparent; color: var(--ccs-azul); cursor: pointer; padding: 0 2px; font-size: 11px; }
+    .topic-stage { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ccs-azul-oscuro); margin: 12px 0 6px; padding-bottom: 4px; border-bottom: 2px solid transparent; border-image: var(--ccs-gradient) 1; }
+    .interview-hint { font-size: 11px; color: var(--text-muted); line-height: 1.45; margin-top: 10px; padding: 10px; background: #F7F8FA; border-radius: 8px; border: 1px solid var(--border); }
+    .help-icon-btn { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border); background: #fff; color: var(--ccs-azul); cursor: pointer; }
+    .help-icon-btn:hover { background: var(--ccs-gradient); color: #fff; border-color: transparent; }
+    .slider-hint { font-size: 11px; color: var(--text-muted); margin: -8px 0 12px; line-height: 1.4; }
+    .glossary-term { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+    .glossary-term h4 { color: var(--ccs-azul-oscuro); font-size: 13px; margin-bottom: 4px; }
+    .glossary-formula { font-size: 12px; background: rgba(58,137,218,0.08); border-left: 3px solid var(--ccs-azul); padding: 8px 10px; margin-top: 8px; border-radius: 0 6px 6px 0; }
+    .calc-box { background: #F7F8FA; border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-top: 10px; }
+    .calc-result { margin-top: 8px; font-weight: 700; color: var(--ccs-azul-oscuro); }
 
     /* ===== SCROLLBAR ===== */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -327,7 +340,6 @@
     .chip-btn:hover { background: var(--ccs-dorado); color: var(--ccs-azul-oscuro); transform: translateY(-1px); }
 
     /* ===== TOPIC ITEM COVERED ===== */
-    .topic-item.covered { opacity: 0.7; text-decoration: line-through; }
     .topic-item.covered .topic-icon i { color: var(--ccs-verde) !important; }
 
     /* ===== PULSE ANIMATION ===== */
@@ -452,7 +464,7 @@
         <div class="card" style="text-align:center">
           <div style="font-size:28px;color:var(--ccs-azul-oscuro);margin-bottom:8px"><i class="fas fa-comments"></i></div>
           <div class="card-title" style="justify-content:center">Entrevista Guiada</div>
-          <div class="card-subtitle">El agente te pregunta sobre tu negocio y construye el flujo de caja automáticamente</div>
+          <div class="card-subtitle">El asistente te guía por etapas. Tú eliges cuándo generar el flujo con el botón; no es obligatorio llegar al 100%.</div>
         </div>
         <div class="card" style="text-align:center">
           <div style="font-size:28px;color:var(--ccs-rojo);margin-bottom:8px"><i class="fas fa-chart-pie"></i></div>
@@ -497,9 +509,10 @@
                 <span style="font-size:13px; font-weight:700; color:var(--ccs-azul-oscuro);">Entrevista Financiera</span>
                 <span style="font-size:11px; color:var(--text-muted); margin-left:8px;" id="interviewCompanyName"></span>
               </div>
-              <div style="display:flex; align-items:center; gap:12px;">
-                <span style="font-size:11px; color:var(--text-muted);">Progreso: <strong id="interviewPct" style="color:var(--ccs-azul);">0%</strong></span>
-                <button class="btn btn-success btn-sm" id="btnGenerateCashflow" onclick="generateCashflow()" style="display:none;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:11px; color:var(--text-muted);" id="interviewProgressLabel">Progreso: <strong id="interviewPct" style="color:var(--ccs-azul);">0%</strong></span>
+                <button class="help-icon-btn" title="Glosario y calculadoras" onclick="openGlossary()"><i class="fas fa-question"></i></button>
+                <button class="btn btn-success btn-sm" id="btnGenerateCashflow" onclick="generateCashflow()">
                   <i class="fas fa-magic"></i> Generar Cashflow
                 </button>
               </div>
@@ -518,10 +531,11 @@
           </div>
         </div>
         <!-- Interview Topics Panel -->
-        <div style="width:240px; flex-shrink:0;">
+        <div style="width:280px; flex-shrink:0; overflow-y:auto;">
           <div class="card">
             <div class="card-title" style="font-size:13px;"><i class="fas fa-tasks" style="color:var(--ccs-azul);"></i> Temas de la Entrevista</div>
             <div id="interviewTopics"></div>
+            <div class="interview-hint" id="interviewHint">El 100% son todos los temas. No es obligatorio completarlos: genera cuando tengas lo esencial (negocio, precios, costos y caja). Haz clic en un tema para saltar a él.</div>
           </div>
         </div>
       </div>
@@ -575,6 +589,7 @@
       <div class="grid-2">
         <div class="card">
           <div class="card-title"><i class="fas fa-sliders" style="color:var(--ccs-azul);"></i> Variables de Simulación</div>
+          <p class="slider-hint">0% es tu escenario actual. Un +20% en ventas significa vender un 20% más que hoy; un −10% en costos fijos es recortar esos gastos un 10%.</p>
           <div id="simulationControls"></div>
           <div class="form-actions">
             <button class="btn btn-secondary" onclick="resetSliders()"><i class="fas fa-undo"></i> Resetear</button>
@@ -595,10 +610,17 @@
         <div class="card-header">
           <div>
             <div class="card-title"><i class="fas fa-dice" style="color:var(--ccs-azul);"></i> Simulación Monte Carlo</div>
-            <div class="card-subtitle">Evaluación probabilística de riesgo financiero</div>
+            <div class="card-subtitle">Miles de escenarios aleatorios para estimar el riesgo de quedarte sin caja</div>
           </div>
-          <button class="btn btn-primary" onclick="runMonteCarlo()"><i class="fas fa-play"></i> Ejecutar Simulación</button>
+          <div style="display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap;">
+            <div class="form-group" style="margin:0; width:140px;">
+              <label>Iteraciones</label>
+              <input type="number" id="mcIterations" value="1000" min="100" max="5000" step="100">
+            </div>
+            <button class="btn btn-primary" onclick="runMonteCarlo()"><i class="fas fa-play"></i> Ejecutar Simulación</button>
+          </div>
         </div>
+        <p class="slider-hint" style="margin:0 0 16px;">Más iteraciones = más precisión y más tiempo (mín. 100, máx. 5.000). El percentil P5 es un escenario malo; P50 la mediana; P95 uno favorable.</p>
         <div class="grid-4" id="mcStats" style="margin-bottom:16px;"></div>
         <div class="grid-2">
           <div><canvas id="chartMC" height="200"></canvas></div>
@@ -729,7 +751,7 @@
       <!-- Step 2: Parámetros iniciales -->
       <div id="wizardStep2" style="display:none">
         <p style="font-size:12px; color:var(--text-muted); margin-bottom:16px;">
-          Estos datos son opcionales. Si no los conoces, el asistente te ayudará a estimarlos durante la entrevista.
+          Estos datos se usarán en la entrevista. El asistente te pedirá <strong>confirmarlos o ajustarlos</strong>, no volver a responderlos desde cero. Si no los conoces, déjalos en blanco y los estimamos juntos.
         </p>
         <div class="form-row">
           <div class="form-group">
@@ -793,7 +815,7 @@
           <div style="font-size:20px;">&#128640;</div>
           <div>
             <div style="font-weight:700;">¡Listo para comenzar!</div>
-            <div style="font-size:12px; opacity:0.8;">Al crear la empresa, se iniciará automáticamente la entrevista financiera con el asistente de IA.</div>
+            <div style="font-size:12px; opacity:0.8;">Al crear la empresa, la entrevista partirá de estos datos: te pediremos confirmarlos o cambiarlos, no repetirlos.</div>
           </div>
         </div>
         <div class="form-actions">
@@ -803,6 +825,20 @@
           </button>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: Glosario y calculadoras ===== -->
+<div class="modal-overlay" id="glossaryModal">
+  <div class="modal" style="max-width:640px; max-height:90vh; overflow:hidden; display:flex; flex-direction:column;">
+    <div class="modal-header">
+      <div class="modal-title"><i class="fas fa-book-open" style="color:var(--ccs-azul);"></i> Glosario y calculadoras</div>
+      <button class="modal-close" onclick="closeModal('glossaryModal')">&times;</button>
+    </div>
+    <div class="modal-body" style="overflow-y:auto;">
+      <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">Definiciones en lenguaje simple, con fórmulas cuando aplica. Las calculadoras son una ayuda educativa, no un informe contable.</p>
+      <div id="glossaryContent"></div>
     </div>
   </div>
 </div>
