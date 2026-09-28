@@ -176,18 +176,7 @@ function renderCompaniesGrid() {
     return;
   }
 
-  grid.innerHTML = state.companies.map(c => {
-    const initial = escapeHtml((c.name || '?')[0].toUpperCase());
-    const statusClass = c.status === 'complete' ? 'status-complete' : c.status === 'interviewing' ? 'status-interviewing' : 'status-pending';
-    const statusText = c.status === 'complete' ? 'Cashflow listo' : c.status === 'interviewing' ? 'En entrevista' : 'Pendiente';
-    const selected = c.id === state.companyId ? 'selected' : '';
-    return `<div class="company-card ${selected}" onclick="selectCompany('${escapeHtml(c.id)}')">
-      <div class="company-avatar">${initial}</div>
-      <div class="company-name">${escapeHtml(c.name)}</div>
-      <div class="company-sector">${escapeHtml(c.sector || 'Sin sector')}</div>
-      <div class="company-status ${statusClass}">${statusText}</div>
-    </div>`;
-  }).join('');
+  grid.innerHTML = state.companies.map(c => companyCardHtml(c, c.id === state.companyId ? 'selected' : '')).join('');
 }
 
 function renderHomeCompanies() {
@@ -199,24 +188,84 @@ function renderHomeCompanies() {
       <div><div class="card-title">Tus Empresas</div><div class="card-subtitle">Selecciona una empresa para continuar</div></div>
       <button class="btn btn-sm btn-secondary" onclick="navigateTo('companies')">Ver todas</button>
     </div>
-    <div class="grid-3">${state.companies.slice(0, 3).map(c => {
-      const initial = escapeHtml((c.name || '?')[0].toUpperCase());
-      const statusClass = c.status === 'complete' ? 'status-complete' : c.status === 'interviewing' ? 'status-interviewing' : 'status-pending';
-      const statusText = c.status === 'complete' ? 'Cashflow listo' : c.status === 'interviewing' ? 'En entrevista' : 'Pendiente';
-      return `<div class="company-card" onclick="selectCompany('${escapeHtml(c.id)}')">
-        <div class="company-avatar">${initial}</div>
-        <div class="company-name">${escapeHtml(c.name)}</div>
-        <div class="company-sector">${escapeHtml(c.sector || 'Sin sector')}</div>
-        <div class="company-status ${statusClass}">${statusText}</div>
-      </div>`;
-    }).join('')}</div>
+    <div class="grid-3">${state.companies.slice(0, 3).map(c => companyCardHtml(c, '')).join('')}</div>
   </div>`;
+}
+
+function companyCardHtml(c, extraClass) {
+  const initial = escapeHtml((c.name || '?')[0].toUpperCase());
+  const statusClass = c.status === 'complete' ? 'status-complete' : c.status === 'interviewing' ? 'status-interviewing' : 'status-pending';
+  const statusText = c.status === 'complete' ? 'Cashflow listo' : c.status === 'interviewing' ? 'En entrevista' : 'Pendiente';
+  return `<div class="company-card ${extraClass || ''}" onclick="selectCompany('${escapeHtml(c.id)}')">
+    <button type="button" class="company-delete" title="Eliminar empresa" data-id="${escapeHtml(c.id)}" data-name="${escapeHtml(c.name || '')}" onclick="deleteCompany(event, this)"><i class="fas fa-trash"></i></button>
+    <div class="company-avatar">${initial}</div>
+    <div class="company-name">${escapeHtml(c.name)}</div>
+    <div class="company-sector">${escapeHtml(c.sector || 'Sin sector')}</div>
+    <div class="company-status ${statusClass}">${statusText}</div>
+  </div>`;
+}
+
+async function deleteCompany(event, btn) {
+  if (event) { event.stopPropagation(); event.preventDefault(); }
+  const id = btn && btn.dataset ? btn.dataset.id : '';
+  const name = btn && btn.dataset ? btn.dataset.name : 'esta empresa';
+  if (!id) return;
+  if (!confirm('¿Eliminar "' + name + '"? Se borran su entrevista y su flujo de caja. No se puede deshacer.')) return;
+  try {
+    const r = await fetch(`${API}/api/companies/${id}`, { method: 'DELETE' });
+    if (!r.ok) { notify('error', 'No se pudo eliminar la empresa'); return; }
+    if (state.companyId === id) {
+      state.companyId = null;
+      state.companyName = '';
+      state.sessionId = '';
+      clearCompanyFinancialViews();
+      const tools = document.getElementById('companyToolsSection');
+      if (tools) tools.style.display = 'none';
+      const chat = document.getElementById('chatMessages');
+      if (chat) chat.innerHTML = '<div class="chat-message system-msg">Selecciona o crea una empresa para comenzar la entrevista financiera.</div>';
+    }
+    await loadCompanies();
+    notify('success', 'Empresa eliminada');
+  } catch (e) {
+    notify('error', 'Error al eliminar la empresa');
+  }
+}
+
+function clearCompanyFinancialViews() {
+  state.cashflow = null;
+  state.metricsBaseline = null;
+  ['cashflow', 'incomeExpense', 'simulation', 'mc'].forEach(key => {
+    if (state.charts[key]) {
+      state.charts[key].destroy();
+      state.charts[key] = null;
+    }
+  });
+  const who = state.companyName ? ` de ${escapeHtml(state.companyName)}` : '';
+  const stats = document.getElementById('dashboardStats');
+  if (stats) {
+    stats.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">
+      <div class="empty-icon"><i class="fas fa-chart-line"></i></div>
+      <div class="empty-title">Sin flujo de caja${who}</div>
+      <div class="empty-desc">Esta empresa aún no tiene un flujo generado. Completa la entrevista y pulsa Generar Cashflow.</div>
+    </div>`;
+  }
+  const table = document.getElementById('dashboardTable');
+  if (table) table.innerHTML = '';
+  const metrics = document.getElementById('metricsContent');
+  if (metrics) metrics.innerHTML = '<div class="empty-state"><div class="empty-title">Sin métricas de esta empresa</div><div class="empty-desc">Genera el flujo de caja primero</div></div>';
+  const scenarios = document.getElementById('scenariosList');
+  if (scenarios) scenarios.innerHTML = '';
+  const mc = document.getElementById('mcStats');
+  if (mc) mc.innerHTML = '';
 }
 
 async function selectCompany(id) {
   if (!id) return;
   state.companyId = id;
+  state.companyName = '';
   state.sessionId = '';
+  state.cashflow = null;
+  clearCompanyFinancialViews();
 
   showGlobalLoading('Cargando empresa...');
 
@@ -257,9 +306,10 @@ async function selectCompany(id) {
     document.getElementById('chatInput').disabled = false;
     document.getElementById('btnSendChat').disabled = false;
 
-    // Load cashflow if exists
     if (company.status === 'complete') {
       await loadCashflow();
+    } else {
+      clearCompanyFinancialViews();
     }
 
     // Restaurar progreso de entrevista persistido
@@ -573,6 +623,7 @@ function updateInterviewTopics(coveredTopics = [], progress = {}) {
 
 async function openGlossary(topicId) {
   openModal('glossaryModal');
+  state.glossaryFocus = topicId || null;
   const box = document.getElementById('glossaryContent');
   if (!state.glossaryTerms) {
     box.innerHTML = '<p style="color:var(--text-muted);">Cargando glosario...</p>';
@@ -585,30 +636,57 @@ async function openGlossary(topicId) {
       return;
     }
   }
-  renderGlossary(topicId);
+  showGlossaryTab('definiciones');
 }
 
-function renderGlossary(focusId) {
+function showGlossaryTab(tab) {
+  state.glossaryTab = tab === 'calculadoras' ? 'calculadoras' : 'definiciones';
+  const defs = document.getElementById('glossaryTabDefs');
+  const calcs = document.getElementById('glossaryTabCalcs');
+  if (defs) defs.classList.toggle('active', state.glossaryTab === 'definiciones');
+  if (calcs) calcs.classList.toggle('active', state.glossaryTab === 'calculadoras');
   const box = document.getElementById('glossaryContent');
+  const scroller = document.getElementById('glossaryScroll');
+  if (!box) return;
   const terms = state.glossaryTerms || [];
-  const ordered = focusId
-    ? [...terms.filter(t => t.id === focusId), ...terms.filter(t => t.id !== focusId)]
-    : terms;
-  box.innerHTML = ordered.map(t => {
-    const calc = t.calculator === 'fixed_costs' ? glossaryCalcFixed()
-      : t.calculator === 'variable_pct' ? glossaryCalcVariable()
-      : t.calculator === 'salary_chile' ? glossaryCalcSalary()
-      : '';
-    return `<div class="glossary-term" id="glossary-${t.id}">
+  if (state.glossaryTab === 'calculadoras') {
+    const seen = new Set();
+    const items = [];
+    terms.forEach(t => {
+      if (!t.calculator || seen.has(t.calculator)) return;
+      seen.add(t.calculator);
+      items.push(t);
+    });
+    box.innerHTML = `<p class="slider-hint">Estas son las únicas calculadoras interactivas. Las fórmulas de Definiciones son solo explicación y no calculan.</p>` +
+      items.map(t => {
+        const calc = t.calculator === 'fixed_costs' ? glossaryCalcFixed()
+          : t.calculator === 'variable_pct' ? glossaryCalcVariable()
+          : t.calculator === 'salary_chile' ? glossaryCalcSalary()
+          : '';
+        return `<div class="glossary-term">
+          <h4>${escapeHtml(t.title || t.id)}</h4>
+          <p style="font-size:13px;">${escapeHtml(t.definition || '')}</p>
+          ${calc}
+        </div>`;
+      }).join('');
+    if (scroller) scroller.scrollTop = 0;
+    return;
+  }
+  box.innerHTML = terms.map(t => `<div class="glossary-term${state.glossaryFocus === t.id ? ' focused' : ''}" id="glossary-${t.id}">
       <h4>${escapeHtml(t.title || t.id)}</h4>
       <p style="font-size:13px;">${escapeHtml(t.definition || '')}</p>
-      ${t.formula ? `<div class="glossary-formula">${escapeHtml(t.formula)}</div>` : ''}
-      ${calc}
-    </div>`;
-  }).join('');
-  if (focusId) {
-    const el = document.getElementById('glossary-' + focusId);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      ${t.formula ? `<div class="glossary-formula"><span style="font-size:10px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:var(--ccs-azul);">Fórmula de referencia</span><br>${escapeHtml(t.formula)}</div>` : ''}
+    </div>`).join('');
+  if (state.glossaryFocus && scroller) {
+    const focusId = state.glossaryFocus;
+    requestAnimationFrame(() => {
+      const el = document.getElementById('glossary-' + focusId);
+      if (!el) return;
+      const top = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+      scroller.scrollTop = Math.max(0, top - 8);
+    });
+  } else if (scroller) {
+    scroller.scrollTop = 0;
   }
 }
 
@@ -845,17 +923,20 @@ function pollGenerationProgressV1(taskId) {
 // Dashboard
 // ============================================================================
 async function loadCashflow() {
+  const companyId = state.companyId;
+  if (!companyId) { clearCompanyFinancialViews(); return; }
   try {
-    const r = await fetch(`${API}/api/companies/${state.companyId}/cashflow`);
+    const r = await fetch(`${API}/api/companies/${companyId}/cashflow`);
+    if (companyId !== state.companyId) return;
+    if (!r.ok) { clearCompanyFinancialViews(); return; }
     const data = await r.json();
+    const months = data.months || data.cashflow?.months || [];
+    if (!months.length) { clearCompanyFinancialViews(); return; }
     state.cashflow = data;
     renderDashboard(data);
   } catch(e) {
-    document.getElementById('dashboardStats').innerHTML = `<div class="empty-state" style="grid-column:1/-1;">
-      <div class="empty-icon"><i class="fas fa-chart-line"></i></div>
-      <div class="empty-title">Sin flujo de caja</div>
-      <div class="empty-desc">Completa la entrevista y genera el flujo de caja para ver el dashboard</div>
-    </div>`;
+    if (companyId !== state.companyId) return;
+    clearCompanyFinancialViews();
   }
 }
 
@@ -1304,8 +1385,11 @@ function renderMetrics(data, cashflow) {
     </div>
     ${m.resumen_ejecutivo ? `<div class="card"><div class="card-title" style="color:${m.resumen_ejecutivo.color || 'var(--ccs-azul-oscuro)'}"><i class="fas fa-heartbeat"></i> Salud Financiera: ${m.resumen_ejecutivo.salud} (${m.resumen_ejecutivo.score}/100)</div></div>` : ''}
     <div class="card" style="margin-top:16px;">
-      <div class="card-title"><i class="fas fa-question-circle" style="color:var(--ccs-azul);"></i> Qué pasaría si…</div>
-      <p class="slider-hint">Ingresa un escenario en montos. Calculamos el cambio respecto de tu flujo actual (${formatCurrency(base.sales)} ventas/mes, ${formatCurrency(base.fixed)} costos fijos).</p>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px;">
+        <div class="card-title" style="margin:0;"><i class="fas fa-flask" style="color:var(--ccs-azul);"></i> Qué pasaría si…</div>
+        <button type="button" class="help-icon-btn" title="Abrir esta definición en el glosario" onclick="openGlossary('break_even')"><i class="fas fa-question"></i></button>
+      </div>
+      <p class="slider-hint">El ícono del matraz identifica la sección. El botón ? abre el glosario. Ingresa un escenario en montos respecto de tu flujo actual (${formatCurrency(base.sales)} ventas/mes, ${formatCurrency(base.fixed)} costos fijos).</p>
       <div class="form-row">
         <div class="form-group"><label>Ventas mensuales objetivo</label><input type="number" id="whatIfSales" value="${base.sales ? Math.round(base.sales) : ''}" placeholder="Ej: 8000000"></div>
         <div class="form-group"><label>Costo variable (% de ventas)</label><input type="number" id="whatIfVarPct" step="0.1" placeholder="Ej: 40"></div>
@@ -1573,10 +1657,35 @@ async function loadSettings() {
 
     // Cargar info de exportaci\u00f3n
     loadExportInfo();
+    wireImportDropZone();
   } catch(e) {
     console.error('[SmartCaja] Error loading settings:', e);
     document.getElementById('settingsContent').innerHTML = '<p style="color:var(--text-muted);">Error cargando configuraci\u00f3n: ' + escapeHtml(e.message) + '</p>';
   }
+}
+
+function wireImportDropZone() {
+  const zone = document.getElementById('importDropZone');
+  if (!zone || zone.dataset.wired === '1') return;
+  zone.dataset.wired = '1';
+  ['dragenter', 'dragover'].forEach(name => {
+    zone.addEventListener(name, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      zone.classList.add('dragover');
+    });
+  });
+  zone.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    zone.classList.remove('dragover');
+  });
+  zone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    zone.classList.remove('dragover');
+    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (file) _processImportFile(file);
+  });
 }
 
 async function loadExportInfo() {
@@ -1783,6 +1892,8 @@ async function loadAgents() {
     state.availableSkills = skillsData.skills || [];
     state.maxAgentSkills = skillsData.max_per_agent || 8;
     state.installedModels = modelsData.models || [];
+    state.agentSkills = {};
+    state.agentNames = state.agentNames || {};
     const agents = data.agents || [];
 
     let html = '';
@@ -1799,6 +1910,8 @@ async function loadAgents() {
     for (const agent of agents) {
       const agentId = agent.id;
       const skills = agent.skills || [];
+      state.agentSkills[agentId] = skills.slice();
+      state.agentNames[agentId] = agent.name || agentId;
       const skillContents = agent.skill_contents || {};
       const roleLabel = agent.role_label || ({ interviewer: 'Entrevistador', analyst: 'Analista', simulator: 'Simulador', extractor: 'Extractor' }[agent.role] || 'Agente');
       const extraModels = (state.installedModels || []).filter(Boolean);
@@ -1806,7 +1919,7 @@ async function loadAgents() {
       html += `<div class="card" style="padding:20px;" id="agent-card-${agentId}">`;
       html += `<div style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:16px;">`;
       html += `<div style="display:flex; align-items:center; gap:12px;">`;
-      html += `<div style="width:40px; height:40px; border-radius:50%; background:var(--ccs-azul); display:flex; align-items:center; justify-content:center;"><i class="fas fa-robot" style="color:#fff; font-size:16px;"></i></div>`;
+      html += `<div class="agent-mark" aria-hidden="true"><i class="fas fa-robot"></i></div>`;
       html += `<div><div style="font-weight:700; font-size:14px; color:var(--ccs-azul-oscuro);">${escapeHtml(agent.name || agentId)}</div>`;
       html += `<div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${escapeHtml(agent.description || '')}</div></div>`;
       html += `</div>`;
@@ -1843,7 +1956,7 @@ async function loadAgents() {
       for (const sname of skills) {
         html += `<span style="display:inline-flex; align-items:center; gap:4px;">`;
         html += `<button class="btn btn-sm" style="background:rgba(0,37,88,0.08); color:var(--ccs-azul); border:1px solid rgba(0,37,88,0.2); font-size:10px;" onclick="toggleSkillEditor('${agentId}','${sname}')">&#9998; ${escapeHtml(sname)}</button>`;
-        html += `<button class="btn btn-sm" title="Quitar skill" style="font-size:10px; padding:3px 8px;" onclick="removeAgentSkill('${agentId}', ${JSON.stringify(sname)}, ${JSON.stringify(skills)})">&times;</button>`;
+        html += `<button type="button" class="btn btn-sm" title="Quitar skill" style="font-size:10px; padding:3px 8px;" data-agent="${escapeHtml(agentId)}" data-skill="${escapeHtml(sname)}" onclick="removeAgentSkill(this)">&times;</button>`;
         html += `</span>`;
       }
       html += `</div>`;
@@ -1855,7 +1968,11 @@ async function loadAgents() {
         html += `<option value="">Seleccionar...</option>`;
         unused.forEach(s => { html += `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`; });
         html += `</select></div>`;
-        html += `<button class="btn btn-primary btn-sm" onclick="addAgentSkill('${agentId}', ${JSON.stringify(skills)})">Añadir</button>`;
+        html += `<button type="button" class="btn btn-primary btn-sm" onclick="addAgentSkill('${agentId}')">Añadir</button>`;
+        html += `</div>`;
+        html += `<div style="display:flex; gap:8px; align-items:flex-end; margin-bottom:12px;">`;
+        html += `<div class="form-group" style="flex:1; margin:0;"><label>Crear skill nueva</label><input type="text" id="new-skill-${agentId}" maxlength="40" placeholder="nombre_en_minusculas"></div>`;
+        html += `<button type="button" class="btn btn-secondary btn-sm" onclick="createAgentSkill('${agentId}')">Crear</button>`;
         html += `</div>`;
       } else {
         html += `<p class="slider-hint">Llegaste al máximo. Quita un skill para añadir otro.</p>`;
@@ -1883,11 +2000,15 @@ async function loadAgents() {
   }
 }
 
-async function addAgentSkill(agentId, currentSkills) {
+function _skillSlug(raw) {
+  return String(raw || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 40);
+}
+
+async function addAgentSkill(agentId) {
   const sel = document.getElementById(`add-skill-${agentId}`);
-  const name = sel ? sel.value : '';
+  const name = _skillSlug(sel ? sel.value : '');
   if (!name) { notify('error', 'Elige un skill'); return; }
-  const next = [...(currentSkills || [])];
+  const next = (state.agentSkills[agentId] || []).slice();
   if (!next.includes(name)) next.push(name);
   if (next.length > (state.maxAgentSkills || 8)) {
     notify('error', 'Máximo ' + (state.maxAgentSkills || 8) + ' skills por agente');
@@ -1896,9 +2017,36 @@ async function addAgentSkill(agentId, currentSkills) {
   await saveAgentSkills(agentId, next);
 }
 
-async function removeAgentSkill(agentId, skillName, currentSkills) {
-  const next = (currentSkills || []).filter(s => s !== skillName);
+async function removeAgentSkill(btn) {
+  const agentId = btn && btn.dataset ? btn.dataset.agent : '';
+  const skillName = btn && btn.dataset ? btn.dataset.skill : '';
+  if (!agentId || !skillName) return;
+  const next = (state.agentSkills[agentId] || []).filter(s => s !== skillName);
   await saveAgentSkills(agentId, next);
+}
+
+async function createAgentSkill(agentId) {
+  const input = document.getElementById(`new-skill-${agentId}`);
+  const name = _skillSlug(input ? input.value : '');
+  if (!name) { notify('error', 'Usa un nombre en minúsculas, sin espacios'); return; }
+  const next = (state.agentSkills[agentId] || []).slice();
+  if (next.includes(name)) { notify('error', 'Ese skill ya está en el agente'); return; }
+  if (next.length >= (state.maxAgentSkills || 8)) {
+    notify('error', 'Máximo ' + (state.maxAgentSkills || 8) + ' skills. Quita uno antes de crear otro.');
+    return;
+  }
+  try {
+    const created = await fetch(`${API}/api/agents/${agentId}/skills/${name}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: '# ' + name + '\n\nEscribe aquí las instrucciones de esta skill.\n' })
+    });
+    if (!created.ok) { notify('error', 'No se pudo crear el archivo de la skill'); return; }
+    next.push(name);
+    await saveAgentSkills(agentId, next);
+  } catch (e) {
+    notify('error', 'Error: ' + e.message);
+  }
 }
 
 async function saveAgentSkills(agentId, skills) {
@@ -1913,6 +2061,7 @@ async function saveAgentSkills(agentId, skills) {
       notify('error', err.detail || 'No se pudo actualizar skills');
       return;
     }
+    state.agentSkills[agentId] = skills.slice();
     notify('success', 'Skills actualizados');
     loadAgents();
   } catch (e) {
@@ -1979,6 +2128,18 @@ async function saveAgents() {
 // ============================================================================
 // Uso de Tokens y Auditoría (estilo brand-assistant)
 // ============================================================================
+function agentLabel(id) {
+  if (!id) return '—';
+  if (state.agentNames && state.agentNames[id]) return state.agentNames[id];
+  const known = {
+    financial_interviewer: 'Entrevistador Financiero',
+    cashflow_analyst: 'Analista de Flujo de Caja',
+    scenario_simulator: 'Simulador de Escenarios',
+    data_extractor: 'Extractor de Datos',
+  };
+  return known[id] || String(id).replace(/_/g, ' ');
+}
+
 function _formatNumber(n) {
   if (!n && n !== 0) return '0';
   return Number(n).toLocaleString('es-CL');
@@ -2038,7 +2199,7 @@ async function loadTokenStats() {
       state.charts.tokens = new Chart(ctx, {
         type: 'bar',
         data: {
-          labels: agentNames.map(n => n.replace(/_/g, ' ')),
+          labels: agentNames.map(n => agentLabel(n)),
           datasets: [{
             label: 'Tokens usados',
             data: agentTokens,
@@ -2078,7 +2239,7 @@ async function loadTokenStats() {
                 ${entries.slice(0, 50).map(e => `
                   <tr style="border-bottom:1px solid var(--border);">
                     <td style="padding:6px 10px; color:var(--text-muted);">${e.timestamp ? new Date(e.timestamp).toLocaleString('es-CL', {hour:'2-digit',minute:'2-digit',second:'2-digit'}) : '-'}</td>
-                    <td style="padding:6px 10px; font-weight:600; color:var(--ccs-azul);">${escapeHtml((e.agent_id || '').replace(/_/g, ' '))}</td>
+                    <td style="padding:6px 10px; font-weight:600; color:var(--ccs-azul);">${escapeHtml(agentLabel(e.agent_id || ''))}</td>
                     <td style="padding:6px 10px;">${escapeHtml(e.task || '')}</td>
                     <td style="padding:6px 10px; color:var(--text-muted);">${escapeHtml(e.model || '')}</td>
                     <td style="padding:6px 10px; text-align:right;">${_formatLatency(e.latency_ms)}</td>

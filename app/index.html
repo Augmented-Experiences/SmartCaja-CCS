@@ -132,7 +132,7 @@
     .card { background: #FFFFFF; border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; box-shadow: var(--shadow-sm); transition: box-shadow 0.2s; }
     .card:hover { box-shadow: var(--shadow-md); }
     .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-    .card-title { font-size: 15px; font-weight: 700; color: var(--ccs-azul-oscuro); }
+    .card-title { font-size: 15px; font-weight: 700; color: var(--ccs-azul-oscuro); margin-bottom: 8px; }
     .card-subtitle { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 
     /* ===== BUTTONS ===== */
@@ -174,7 +174,14 @@
     .company-card {
       background: #FFFFFF; border: 1px solid var(--border); border-radius: var(--radius);
       padding: 16px; cursor: pointer; transition: all 0.18s; box-shadow: var(--shadow-sm);
+      position: relative;
     }
+    .company-delete {
+      position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border-radius: 50%;
+      border: 1px solid var(--border); background: #fff; color: var(--danger); cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .company-delete:hover { background: #fee2e2; border-color: var(--danger); }
     .company-card:hover { border-color: var(--ccs-azul); transform: translateY(-2px); box-shadow: var(--shadow-md); }
     .company-card.selected { border-color: var(--ccs-azul-oscuro); background: rgba(0,37,88,0.04); box-shadow: 0 0 0 2px rgba(0,37,88,0.15); }
     .company-avatar {
@@ -284,7 +291,16 @@
     .interview-hint { font-size: 11px; color: var(--text-muted); line-height: 1.45; margin-top: 10px; padding: 10px; background: #F7F8FA; border-radius: 8px; border: 1px solid var(--border); }
     .help-icon-btn { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border); background: #fff; color: var(--ccs-azul); cursor: pointer; }
     .help-icon-btn:hover { background: var(--ccs-gradient); color: #fff; border-color: transparent; }
-    .slider-hint { font-size: 11px; color: var(--text-muted); margin: -8px 0 12px; line-height: 1.4; }
+    .slider-hint { font-size: 11px; color: var(--text-muted); margin: 0 0 14px; line-height: 1.45; }
+    .glossary-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+    .glossary-term.focused { background: rgba(58,137,218,0.08); border-radius: 8px; padding: 8px; scroll-margin-top: 8px; }
+    .agent-mark {
+      width: 40px; height: 40px; min-width: 40px; flex: 0 0 40px; aspect-ratio: 1 / 1;
+      border-radius: 50%; background: var(--ccs-azul); overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .agent-mark i { font-size: 16px; line-height: 1; color: #fff; }
+    #importDropZone.dragover { border-color: var(--ccs-azul); background: rgba(58,137,218,0.08); }
     .glossary-term { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
     .glossary-term h4 { color: var(--ccs-azul-oscuro); font-size: 13px; margin-bottom: 4px; }
     .glossary-formula { font-size: 12px; background: rgba(58,137,218,0.08); border-left: 3px solid var(--ccs-azul); padding: 8px 10px; margin-top: 8px; border-radius: 0 6px 6px 0; }
@@ -439,7 +455,11 @@
   <div class="main-content">
     <div class="topbar">
       <div class="topbar-title" id="pageTitle">Inicio</div>
-      <div class="topbar-actions" id="topbarActions"></div>
+      <div class="topbar-actions" id="topbarActions">
+        <button type="button" class="help-icon-btn" id="btnGlobalGlossary" title="Glosario y calculadoras" onclick="openGlossary()">
+          <i class="fas fa-book-open"></i>
+        </button>
+      </div>
     </div>
     <div id="ramWarnBanner"></div>
 
@@ -836,9 +856,14 @@
       <div class="modal-title"><i class="fas fa-book-open" style="color:var(--ccs-azul);"></i> Glosario y calculadoras</div>
       <button class="modal-close" onclick="closeModal('glossaryModal')">&times;</button>
     </div>
-    <div class="modal-body" style="overflow-y:auto;">
-      <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">Definiciones en lenguaje simple, con fórmulas cuando aplica. Las calculadoras son una ayuda educativa, no un informe contable.</p>
-      <div id="glossaryContent"></div>
+    <div class="modal-body" style="display:flex; flex-direction:column; min-height:0; overflow:hidden;">
+      <div class="glossary-tabs">
+        <button type="button" class="tab active" id="glossaryTabDefs" onclick="showGlossaryTab('definiciones')">Definiciones</button>
+        <button type="button" class="tab" id="glossaryTabCalcs" onclick="showGlossaryTab('calculadoras')">Calculadoras</button>
+      </div>
+      <div id="glossaryScroll" style="overflow-y:auto; max-height:62vh;">
+        <div id="glossaryContent"></div>
+      </div>
     </div>
   </div>
 </div>
