@@ -2,7 +2,7 @@
   "$comment": "Configuración por-herramienta del SmartSuite (CCCE). Cambia estos valores y ejecuta 'node scripts/configure.mjs' (o 'npm run build', que lo ejecuta antes de compilar).",
   "productName": "SmartCaja",
   "identifier": "co.org.ccce.smartcaja",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "dataDirName": "SmartCaja",
   "accent": "#F4C10E",
   "window": { "title": "SmartCaja", "width": 1280, "height": 840, "minWidth": 960, "minHeight": 640 },
