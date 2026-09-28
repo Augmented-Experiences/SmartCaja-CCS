@@ -1262,7 +1262,7 @@ fn navigate_main_to_backend(app: &tauri::AppHandle, port: u16) -> Result<(), Str
         update_status(app, |s| {
             s.phase = "warning".into();
             s.backend_error = Some(format!(
-                "El servidor local no respondio: {}. Revise logs/ollama.log y reconstruya backend.exe.",
+                "El servidor local no respondio: {}. Revise logs/ollama.log.",
                 probe.detail
             ));
         });

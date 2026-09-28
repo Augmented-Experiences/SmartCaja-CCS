@@ -1,6 +1,6 @@
 {
   "name": "smartcaja-desktop",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "private": true,
   "description": "Instalador/app de escritorio nativo de SmartCaja (Tauri) — Cámara de Comercio de Santiago",
   "scripts": {

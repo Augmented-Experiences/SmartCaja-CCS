@@ -2,7 +2,7 @@
   "$comment": "Configuración por-herramienta del SmartSuite (CCS). Cambia estos valores y ejecuta 'node scripts/configure.mjs' (o 'npm run build', que lo ejecuta antes de compilar).",
   "productName": "SmartCaja",
   "identifier": "cl.ccs.smartcaja",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "dataDirName": "SmartCaja",
   "accent": "#00D53A",
   "window": {
