@@ -156,6 +156,7 @@ async function loadCompanies() {
     document.getElementById('companiesBadge').textContent = state.companies.length;
     renderCompaniesGrid();
     renderHomeCompanies();
+    renderCompanyFilter();
 
     // Auto-select if only one
     if (state.companies.length === 1 && !state.companyId) {
@@ -259,8 +260,31 @@ function clearCompanyFinancialViews() {
   if (mc) mc.innerHTML = '';
 }
 
-async function selectCompany(id) {
+function renderCompanyFilter() {
+  const wrap = document.getElementById('companySwitcher');
+  const sel = document.getElementById('companyFilter');
+  if (!wrap || !sel) return;
+  const companies = state.companies || [];
+  if (!companies.length) {
+    wrap.style.display = 'none';
+    sel.innerHTML = '';
+    return;
+  }
+  wrap.style.display = 'flex';
+  const options = ['<option value="">Seleccionar empresa</option>'].concat(companies.map(c =>
+    `<option value="${escapeHtml(c.id)}"${c.id === state.companyId ? ' selected' : ''}>${escapeHtml(c.name || 'Sin nombre')}</option>`
+  ));
+  sel.innerHTML = options.join('');
+}
+
+function onCompanyFilterChange(id) {
+  if (!id || id === state.companyId) return;
+  selectCompany(id, true);
+}
+
+async function selectCompany(id, stayOnPage) {
   if (!id) return;
+  const keepPage = stayOnPage === true && state.currentPage && state.currentPage !== 'home' && state.currentPage !== 'companies';
   state.companyId = id;
   state.companyName = '';
   state.sessionId = '';
@@ -278,7 +302,7 @@ async function selectCompany(id) {
     // Show company tools in sidebar
     document.getElementById('companyToolsSection').style.display = 'block';
     document.getElementById('activeCompanyLabel').textContent = company.name;
-    document.getElementById('interviewCompanyName').textContent = `— ${company.name}`;
+    document.getElementById('interviewCompanyName').textContent = company.name || '';
 
     // Load sessions
     const sr = await fetch(`${API}/api/companies/${id}/sessions`);
@@ -315,10 +339,10 @@ async function selectCompany(id) {
     // Restaurar progreso de entrevista persistido
     await restoreInterviewProgress(id);
     renderCompaniesGrid();
+    renderCompanyFilter();
     hideGlobalLoading();
 
-    // Navigate to interview
-    navigateTo('interview');
+    navigateTo(keepPage ? state.currentPage : 'interview');
     notify('success', `Empresa "${company.name}" seleccionada`);
   } catch(e) {
     hideGlobalLoading();
@@ -621,9 +645,24 @@ function updateInterviewTopics(coveredTopics = [], progress = {}) {
   container.innerHTML = fallback.map(renderItem).join('');
 }
 
+function onGlossarySearch(value) {
+  state.glossaryQuery = value || '';
+  state.glossaryFocus = null;
+  showGlossaryTab(state.glossaryTab || 'definiciones');
+}
+
+function glossaryTermMatches(term, query) {
+  if (!query) return true;
+  const hay = [term.title, term.id, term.definition, term.formula].filter(Boolean).join(' ').toLowerCase();
+  return hay.includes(query);
+}
+
 async function openGlossary(topicId) {
   openModal('glossaryModal');
   state.glossaryFocus = topicId || null;
+  state.glossaryQuery = '';
+  const search = document.getElementById('glossarySearch');
+  if (search) search.value = '';
   const box = document.getElementById('glossaryContent');
   if (!state.glossaryTerms) {
     box.innerHTML = '<p style="color:var(--text-muted);">Cargando glosario...</p>';
@@ -648,7 +687,14 @@ function showGlossaryTab(tab) {
   const box = document.getElementById('glossaryContent');
   const scroller = document.getElementById('glossaryScroll');
   if (!box) return;
-  const terms = state.glossaryTerms || [];
+  const query = (state.glossaryQuery || '').trim().toLowerCase();
+  const terms = (state.glossaryTerms || []).filter(t => glossaryTermMatches(t, query));
+  const empty = `<p class="slider-hint">Ningún término coincide con «${escapeHtml(state.glossaryQuery || '')}».</p>`;
+  if (!terms.length) {
+    box.innerHTML = empty;
+    if (scroller) scroller.scrollTop = 0;
+    return;
+  }
   if (state.glossaryTab === 'calculadoras') {
     const seen = new Set();
     const items = [];
@@ -657,6 +703,11 @@ function showGlossaryTab(tab) {
       seen.add(t.calculator);
       items.push(t);
     });
+    if (!items.length) {
+      box.innerHTML = query ? empty : '<p class="slider-hint">No hay calculadoras en el glosario.</p>';
+      if (scroller) scroller.scrollTop = 0;
+      return;
+    }
     box.innerHTML = `<p class="slider-hint">Estas son las únicas calculadoras interactivas. Las fórmulas de Definiciones son solo explicación y no calculan.</p>` +
       items.map(t => {
         const calc = t.calculator === 'fixed_costs' ? glossaryCalcFixed()
