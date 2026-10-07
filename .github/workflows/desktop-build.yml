@@ -72,10 +72,16 @@ jobs:
         with:
           name: smartcaja-${{ matrix.target }}
           path: |
+            desktop/src-tauri/target/release/bundle/**/*.AppImage
+            desktop/src-tauri/target/release/bundle/**/*.deb
+            desktop/src-tauri/target/release/bundle/**/*.rpm
+            desktop/src-tauri/target/release/bundle/**/*.dmg
+            desktop/src-tauri/target/release/bundle/**/*.msi
+            desktop/src-tauri/target/release/bundle/**/*-setup.exe
             desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage
             desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.deb
             desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.rpm
             desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
             desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.msi
-            desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.exe
-          if-no-files-found: warn
+            desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*-setup.exe
+          if-no-files-found: error
