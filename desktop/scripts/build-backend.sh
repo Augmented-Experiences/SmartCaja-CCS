@@ -61,11 +61,45 @@ echo "==> Empaquetando backend con PyInstaller"
 
 TRIPLE="$(rustc -vV | sed -n 's/host: //p')"
 mkdir -p desktop/src-tauri/binaries
-cp "desktop/backend/dist/backend" "desktop/src-tauri/binaries/backend-${TRIPLE}"
-chmod +x "desktop/src-tauri/binaries/backend-${TRIPLE}"
-echo "==> Sidecar listo: desktop/src-tauri/binaries/backend-${TRIPLE}"
+SIDECAR="desktop/src-tauri/binaries/backend-${TRIPLE}"
+cp "desktop/backend/dist/backend" "$SIDECAR"
+chmod +x "$SIDECAR"
+echo "==> Sidecar listo: $SIDECAR"
 echo ""
+
+sign_bundled_sidecar() {
+  if [[ "$(uname -s)" != "Darwin" ]]; then
+    return
+  fi
+  if [[ -z "${APPLE_CERTIFICATE:-}" || -z "${APPLE_SIGNING_IDENTITY:-}" || -z "${APPLE_CERTIFICATE_PASSWORD:-}" ]]; then
+    echo "ERROR: falta el certificado de Developer ID. No se genera un DMG sin firmar." >&2
+    exit 1
+  fi
+  echo "==> Firmando el sidecar con Developer ID Application"
+  local keychain="$HOME/Library/Keychains/smartcaja-sign.keychain-db"
+  local pass p12
+  pass="$(openssl rand -base64 24)"
+  p12="$(mktemp)"
+  security delete-keychain "$keychain" >/dev/null 2>&1 || true
+  security create-keychain -p "$pass" "$keychain"
+  security set-keychain-settings -lut 21600 "$keychain"
+  security unlock-keychain -p "$pass" "$keychain"
+  security default-keychain -s "$keychain"
+  printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$p12"
+  security import "$p12" -f pkcs12 -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -k "$keychain"
+  rm -f "$p12"
+  security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$pass" "$keychain" >/dev/null
+  codesign --force --options runtime --timestamp \
+    --entitlements "$ROOT/desktop/src-tauri/entitlements.plist" \
+    --sign "$APPLE_SIGNING_IDENTITY" \
+    --keychain "$keychain" \
+    "$ROOT/$SIDECAR"
+  security delete-keychain "$keychain" >/dev/null
+  echo "==> Sidecar firmado"
+}
+
 if [[ "$INSTALLER" == "1" ]]; then
+  sign_bundled_sidecar
   echo "==> Compilando instalador Tauri…"
   cd desktop
   if [[ ! -d node_modules ]]; then npm install; fi
