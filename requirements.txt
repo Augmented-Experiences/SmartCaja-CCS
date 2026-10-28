@@ -1,7 +1,9 @@
 # ============================================================
-# SmartCaja v2.1 — Dependencias
+# SmartCaja v2.1 — Dependencias del producto
 # Motor Financiero Modular con Simulación Monte Carlo
 # Pinned para reproducibilidad en entornos on-premise
+# gradio, transformers y accelerate NO van aqui.
+# Esas librerias viven solo en templates/requirements-templates.txt
 # ============================================================
 fastapi>=0.110.0,<1.0.0
 uvicorn[standard]>=0.29.0,<1.0.0

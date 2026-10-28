@@ -79,6 +79,15 @@ a = Analysis(
     noarchive=False,
 )
 
+_FORBIDDEN_PARTS = {".cursor", "node_modules", "__pycache__"}
+
+def _datas_allowed(entry) -> bool:
+    dest = str(entry[0]).replace("\\", "/")
+    parts = {p for p in dest.split("/") if p}
+    return _FORBIDDEN_PARTS.isdisjoint(parts)
+
+a.datas = [entry for entry in a.datas if _datas_allowed(entry)]
+
 pyz = PYZ(a.pure)
 
 exe = EXE(

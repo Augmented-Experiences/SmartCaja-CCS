@@ -1,0 +1,16 @@
+{
+  "name": "smartcaja-ui",
+  "private": true,
+  "version": "2.0.1",
+  "description": "Dependencia de DOMPurify para la UI estatica. El instalador solo copia frontend build output a app/lib/purify.min.js. node_modules no se empaqueta.",
+  "scripts": {
+    "sync-purify": "node scripts/sync-purify.js",
+    "verify-chat-sanitize": "node scripts/verify-chat-sanitize.js"
+  },
+  "dependencies": {
+    "dompurify": "3.4.17"
+  },
+  "devDependencies": {
+    "jsdom": "26.1.0"
+  }
+}

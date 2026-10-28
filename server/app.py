@@ -45,6 +45,8 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, UploadFile
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
+from log_sanitize import sanitize_log
+from path_guard import guarded_child
 from pydantic import BaseModel, field_validator
 from interview_manager import InterviewManager, GLOSSARY, interview_panel, TOPIC_LABELS
 
@@ -177,6 +179,12 @@ def _sanitize_id(value: str) -> str:
         raise HTTPException(400, f"ID inválido: solo se permiten caracteres alfanuméricos, guiones y guiones bajos (máx 64 chars).")
     return value
 
+def _json_filename(raw: str) -> str:
+    """Un solo segmento *.json, sin .. ni ruta absoluta."""
+    if not isinstance(raw, str) or raw != Path(raw).name or not raw.endswith(".json"):
+        raise HTTPException(400, "Nombre de archivo no permitido.")
+    return _sanitize_id(raw[:-5]) + ".json"
+
 def _sanitize_filename(name: str) -> str:
     """Sanitiza un nombre para uso seguro en nombres de archivo."""
     if not name:
@@ -212,20 +220,39 @@ def _check_rate_limit(key: str, max_requests: int = RATE_LIMIT_MAX_REQUESTS, win
 # ---------------------------------------------------------------------------
 app = FastAPI(title="SmartCaja", version="0.3.0")
 
-# CORS restringido a localhost (Pinokio siempre corre en localhost)
+# CORS solo a origenes loopback. La UI de escritorio se sirve en 127.0.0.1.
+_LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:*",
-        "http://127.0.0.1:*",
-        "http://0.0.0.0:*",
-        "null",
-    ],
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$",
+    allow_origins=[],
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$",
     allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["*"],
+    allow_headers=["Content-Type", "Accept"],
     allow_credentials=False,
 )
+
+def _hostname_from_host_header(value: str) -> str:
+    host = (value or "").strip().lower()
+    if host.startswith("["):
+        end = host.find("]")
+        return host[1:end] if end > 1 else ""
+    if host.count(":") == 1:
+        return host.rsplit(":", 1)[0]
+    return host
+
+@app.middleware("http")
+async def require_loopback_host(request: Request, call_next):
+    """Solo acepta Host de loopback. testserver existe para el cliente de pruebas."""
+    hostname = _hostname_from_host_header(request.headers.get("host", ""))
+    allowed = set(_LOOPBACK_HOSTS)
+    if hostname == "testserver" and (
+        os.environ.get("PYTEST_CURRENT_TEST") or "unittest" in sys.modules
+    ):
+        allowed.add("testserver")
+    if hostname not in allowed:
+        return JSONResponse(status_code=400, content={"detail": "Host no permitido."})
+    return await call_next(request)
 
 # ---------------------------------------------------------------------------
 # Middleware de logging de errores (visible en consola Pinokio)
@@ -235,12 +262,23 @@ async def log_errors_middleware(request: Request, call_next):
     try:
         response = await call_next(request)
         if response.status_code >= 400:
-            logger.warning(f"[HTTP {response.status_code}] {request.method} {request.url.path}")
+            logger.warning(
+                "[HTTP %s] %s %s",
+                response.status_code,
+                sanitize_log(request.method, 16),
+                sanitize_log(request.url.path),
+            )
         return response
     except Exception as e:
         import uuid as _uuid
         correlation_id = str(_uuid.uuid4())[:8]
-        logger.error(f"[UNHANDLED ERROR][{correlation_id}] {request.method} {request.url.path}: {type(e).__name__}: {e}")
+        logger.error(
+            "[UNHANDLED ERROR][%s] %s %s: %s",
+            correlation_id,
+            sanitize_log(request.method, 16),
+            sanitize_log(request.url.path),
+            sanitize_log(type(e).__name__, 80),
+        )
         return JSONResponse(status_code=500, content={"detail": f"Error interno del servidor. Referencia: {correlation_id}"})
 
 @app.exception_handler(Exception)
@@ -248,7 +286,13 @@ async def global_exception_handler(request: Request, exc: Exception):
     # Generar ID de correlación para rastreo en logs sin exponer detalles al cliente
     import uuid as _uuid
     correlation_id = str(_uuid.uuid4())[:8]
-    logger.error(f"[EXCEPTION][{correlation_id}] {request.method} {request.url.path}: {type(exc).__name__}: {exc}")
+    logger.error(
+        "[EXCEPTION][%s] %s %s: %s",
+        correlation_id,
+        sanitize_log(request.method, 16),
+        sanitize_log(request.url.path),
+        sanitize_log(type(exc).__name__, 80),
+    )
     return JSONResponse(status_code=500, content={"detail": f"Error interno del servidor. Referencia: {correlation_id}"})
 
 # ---------------------------------------------------------------------------
@@ -283,7 +327,7 @@ def load_json(path: Path, default=None):
         try:
             return json.loads(path.read_text(encoding="utf-8"))
         except Exception as e:
-            logger.warning(f"[load_json] Archivo corrupto o ilegible: {path}. Error: {e}. Retornando default.")
+            logger.warning("[load_json] Archivo ilegible: %s (%s)", sanitize_log(path.name, 80), sanitize_log(type(e).__name__, 80))
             return default if default is not None else {}
     return default if default is not None else {}
 
@@ -313,7 +357,7 @@ def _log_audit_entry(agent_id: str, task: str, model: str, inputs_summary: str,
         with open(audit_file, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except Exception as e:
-        logger.warning(f"[AUDIT] Error escribiendo audit: {e}")
+        logger.warning("[AUDIT] Error escribiendo audit: %s", sanitize_log(type(e).__name__, 80))
 
 # ---------------------------------------------------------------------------
 # Utilidades de Ollama con auto-recuperación
@@ -424,7 +468,7 @@ def ensure_ollama_running() -> bool:
         logger.error("Ollama no está instalado en este sistema.")
         return False
     except Exception as e:
-        logger.error(f"Error al intentar iniciar Ollama: {e}")
+        logger.error("Error al intentar iniciar Ollama: %s", sanitize_log(type(e).__name__, 80))
         return False
 
 def _ollama_model_names() -> list:
@@ -1462,7 +1506,7 @@ async def get_hardware_performance():
                         hw["ram_gb"] = round(kb / (1024**2), 1)
                         break
     except Exception as e:
-        logger.debug(f"No se pudo detectar RAM: {e}")
+        logger.debug("No se pudo detectar RAM: %s", sanitize_log(type(e).__name__, 80))
 
     try:
         if sys.platform == "darwin" and plat.machine() == "arm64":
@@ -1508,7 +1552,7 @@ async def get_hardware_performance():
                     "ram_pct": round((model_size_gb / hw["ram_gb"]) * 100, 1) if hw["ram_gb"] > 0 else 100,
                 })
     except Exception as e:
-        logger.debug(f"No se pudieron obtener modelos para performance: {e}")
+        logger.debug("No se pudieron obtener modelos para performance: %s", sanitize_log(type(e).__name__, 80))
 
     return {"hardware": hw, "models": models_perf}
 
@@ -1611,7 +1655,7 @@ async def create_company(data: CompanyCreate):
     }
     save_json(company_dir / "company.json", company)
     persist_interview_seed(company, company_dir)
-    logger.info(f"Empresa creada: {company_id}")
+    logger.info("Empresa creada: %s", sanitize_log(company_id, 64))
     return company
 
 def persist_interview_seed(company: dict, company_dir: Path, existing: dict = None) -> dict:
@@ -1923,7 +1967,7 @@ Genera el JSON del flujo de caja siguiendo exactamente el formato indicado en tu
         cashflow_data = _extract_json_from_llm(response)
         if not cashflow_data:
             # Intentar extraer datos de la respuesta como texto estructurado
-            logger.warning(f"No se pudo extraer JSON del LLM para {company_id}. Respuesta: {response[:200]}")
+            logger.warning("No se pudo extraer JSON del LLM para %s (respuesta de %s caracteres)", sanitize_log(company_id, 64), len(response or ""))
             _generation_status[task_id] = {"status": "error", "progress": 0, "error": "No se pudo generar el flujo de caja. La IA no devolvió datos en formato correcto. Intenta proporcionar más información en la entrevista.", "step": "Error"}
             return
 
@@ -1935,7 +1979,7 @@ Genera el JSON del flujo de caja siguiendo exactamente el formato indicado en tu
         # Validar que se generaron meses
         num_months = len(cashflow_data.get("months", []))
         if num_months == 0:
-            logger.warning(f"Cashflow generado sin meses para {company_id}. JSON extraído: {json.dumps(cashflow_data, default=str)[:500]}")
+            logger.warning("Cashflow generado sin meses para %s", sanitize_log(company_id, 64))
             _generation_status[task_id] = {"status": "error", "progress": 0, "error": "La IA generó un flujo de caja vacío (0 meses). Esto puede ocurrir si no hay suficiente información. Vuelve a la entrevista y proporciona más detalles sobre ingresos y gastos mensuales.", "step": "Error"}
             return
         
@@ -1943,14 +1987,14 @@ Genera el JSON del flujo de caja siguiendo exactamente el formato indicado en tu
         total_income = cashflow_data.get("summary", {}).get("total_income", 0)
         total_expenses = cashflow_data.get("summary", {}).get("total_expenses", 0)
         if total_income == 0 and total_expenses == 0 and num_months > 0:
-            logger.warning(f"Cashflow con {num_months} meses pero totales en 0 para {company_id}")
+            logger.warning("Cashflow con %s meses pero totales en 0 para %s", num_months, sanitize_log(company_id, 64))
             # No es un error fatal, pero loguear para debug
 
         cashflow_data["id"] = str(uuid.uuid4())[:8]
         cashflow_data["company_id"] = company_id
         cashflow_data["created_at"] = datetime.now().isoformat()
         save_json(company_dir / "cashflow.json", cashflow_data)
-        logger.info(f"Flujo de caja generado: {num_months} meses, ingresos={total_income:,.0f}, gastos={total_expenses:,.0f} para empresa {company_id}")
+        logger.info("Flujo de caja generado: %s meses para empresa %s", num_months, sanitize_log(company_id, 64))
 
         company["status"] = "complete"
         company["updated_at"] = datetime.now().isoformat()
@@ -1959,7 +2003,7 @@ Genera el JSON del flujo de caja siguiendo exactamente el formato indicado en tu
         _generation_status[task_id] = {"status": "done", "progress": 100, "error": None, "step": "Completado", "months_generated": num_months}
 
     except Exception as e:
-        logger.error(f"Error generando flujo de caja para {company_id}: {type(e).__name__}")
+        logger.error("Error generando flujo de caja para %s: %s", sanitize_log(company_id, 64), sanitize_log(type(e).__name__, 80))
         _generation_status[task_id] = {"status": "error", "progress": 0, "error": str(e), "step": "Error"}
 
 @app.get("/api/generation/{task_id}/progress")
@@ -2125,7 +2169,7 @@ def _simulate_local_task(company_id: str, instruction: str, params: dict, task_i
             "step": "Simulación completada",
             "mode": "local"
         }
-        logger.info(f"Simulación local completada para empresa {company_id}")
+        logger.info("Simulacion local completada para empresa %s", sanitize_log(company_id, 64))
 
         # Limpiar checkpoint
         checkpoint_path = DATA_DIR / "checkpoints" / f"{task_id}.json"
@@ -2133,7 +2177,7 @@ def _simulate_local_task(company_id: str, instruction: str, params: dict, task_i
             checkpoint_path.unlink()
 
     except Exception as e:
-        logger.error(f"Error en simulación local para {company_id}: {type(e).__name__}: {e}")
+        logger.error("Error en simulacion local para %s: %s", sanitize_log(company_id, 64), sanitize_log(type(e).__name__, 80))
         _generation_status[task_id] = {"status": "error", "progress": 0, "error": str(e), "step": "Error"}
 
 
@@ -2240,7 +2284,7 @@ Aplica los cambios solicitados y devuelve el flujo de caja completo actualizado 
             "step": "Simulación completada",
             "mode": "ai"
         }
-        logger.info(f"Simulación AI completada para empresa {company_id}")
+        logger.info("Simulacion AI completada para empresa %s", sanitize_log(company_id, 64))
 
         # Limpiar checkpoint
         checkpoint_path = DATA_DIR / "checkpoints" / f"{task_id}.json"
@@ -2248,7 +2292,7 @@ Aplica los cambios solicitados y devuelve el flujo de caja completo actualizado 
             checkpoint_path.unlink()
 
     except Exception as e:
-        logger.error(f"Error en simulación AI para {company_id}: {type(e).__name__}: {e}")
+        logger.error("Error en simulacion AI para %s: %s", sanitize_log(company_id, 64), sanitize_log(type(e).__name__, 80))
         _generation_status[task_id] = {"status": "error", "progress": 0, "error": str(e), "step": "Error"}
 
 
@@ -2695,7 +2739,7 @@ async def update_agent(agent_id: str, config: AgentConfigUpdate):
                 prompt_file = prompt_dir / f"{agent_id}.md"
                 prompt_file.write_text(config.system_prompt, encoding="utf-8")
                 agents_data["agents"][i]["system_prompt"] = config.system_prompt
-                logger.info(f"[AGENTS] Prompt de '{agent_id}' guardado en disco ({len(config.system_prompt)} chars)")
+                logger.info("[AGENTS] Prompt de %s guardado (%s caracteres)", sanitize_log(agent_id, 64), len(config.system_prompt or ""))
             if config.skills is not None:
                 cleaned = []
                 for raw in config.skills:
@@ -2727,9 +2771,10 @@ async def update_skill_content(agent_id: str, skill_name: str, request: Request)
     content = body.get("content", "")
     skills_dir = DATA_DIR / "prompts" / "skills"
     skills_dir.mkdir(parents=True, exist_ok=True)
-    skill_file = skills_dir / f"{re.sub(r'[^a-zA-Z0-9_-]', '', skill_name)}.md"
+    safe_skill = re.sub(r"[^a-zA-Z0-9_-]", "", skill_name)
+    skill_file = guarded_child(skills_dir, f"{_sanitize_id(safe_skill)}.md")
     skill_file.write_text(content, encoding="utf-8")
-    logger.info(f"[SKILLS] Skill '{skill_name}' guardado ({len(content)} chars)")
+    logger.info("[SKILLS] Skill %s guardado (%s caracteres)", sanitize_log(safe_skill, 64), len(content or ""))
     return {"ok": True, "skill": skill_name, "agent_id": agent_id, "size": len(content)}
 
 @app.get("/api/audit")
@@ -3077,7 +3122,7 @@ async def export_all_data():
         exports_dir.mkdir(parents=True, exist_ok=True)
         export_file = exports_dir / export_filename
         save_json(export_file, export_package)
-        logger.info(f"Exportaci\u00f3n completada: {export_filename}")
+        logger.info("Exportacion completada: %s", sanitize_log(export_filename, 80))
         return FileResponse(
             path=str(export_file),
             filename=export_filename,
@@ -3085,7 +3130,7 @@ async def export_all_data():
             headers={"Content-Disposition": f'attachment; filename="{export_filename}"'},
         )
     except Exception as e:
-        logger.error(f"Error en exportaci\u00f3n: {e}")
+        logger.error("Error en exportacion: %s", sanitize_log(type(e).__name__, 80))
         raise HTTPException(status_code=500, detail=f"Error al exportar datos: {str(e)}")
 
 
@@ -3139,7 +3184,7 @@ async def import_all_data(file: UploadFile = File(...)):
             prompts_dir = DATA_DIR / "prompts" / "system"
             prompts_dir.mkdir(parents=True, exist_ok=True)
             for name, content_text in export_data["prompts"].items():
-                prompt_file = prompts_dir / f"{name}.md"
+                prompt_file = guarded_child(prompts_dir, f"{_sanitize_id(str(name))}.md")
                 if not prompt_file.exists():
                     prompt_file.write_text(content_text, encoding="utf-8")
                     imported_stats["prompts"] += 1
@@ -3150,7 +3195,7 @@ async def import_all_data(file: UploadFile = File(...)):
             skills_dir = DATA_DIR / "prompts" / "skills"
             skills_dir.mkdir(parents=True, exist_ok=True)
             for name, content_text in export_data["skills"].items():
-                skill_file = skills_dir / f"{name}.md"
+                skill_file = guarded_child(skills_dir, f"{_sanitize_id(str(name))}.md")
                 if not skill_file.exists():
                     skill_file.write_text(content_text, encoding="utf-8")
                     imported_stats["skills"] += 1
@@ -3164,21 +3209,22 @@ async def import_all_data(file: UploadFile = File(...)):
                 company_id = company_export.get("id")
                 if not company_id:
                     continue
-                company_dir = companies_dir / company_id
+                company_id = _sanitize_id(str(company_id))
+                company_dir = guarded_child(companies_dir, company_id)
                 if company_dir.exists():
                     imported_stats["skipped_existing"] += 1
                     continue
                 company_dir.mkdir(parents=True, exist_ok=True)
                 for filename, file_data in company_export.get("files", {}).items():
                     if file_data:
-                        save_json(company_dir / filename, file_data)
+                        save_json(guarded_child(company_dir, _json_filename(str(filename))), file_data)
                 imported_stats["companies"] += 1
         # 6. Sesiones
         if export_data.get("sessions"):
             sessions_dir = DATA_DIR / "sessions"
             sessions_dir.mkdir(parents=True, exist_ok=True)
             for s_name, s_data in export_data["sessions"].items():
-                session_file = sessions_dir / s_name
+                session_file = guarded_child(sessions_dir, _json_filename(str(s_name)))
                 if not session_file.exists() and s_data:
                     save_json(session_file, s_data)
                     imported_stats["sessions"] += 1
@@ -3189,7 +3235,7 @@ async def import_all_data(file: UploadFile = File(...)):
             scenarios_dir = DATA_DIR / "scenarios"
             scenarios_dir.mkdir(parents=True, exist_ok=True)
             for s_name, s_data in export_data["scenarios"].items():
-                scenario_file = scenarios_dir / s_name
+                scenario_file = guarded_child(scenarios_dir, _json_filename(str(s_name)))
                 if not scenario_file.exists() and s_data:
                     save_json(scenario_file, s_data)
         logger.info(f"Importaci\u00f3n completada: {imported_stats}")
@@ -3197,7 +3243,7 @@ async def import_all_data(file: UploadFile = File(...)):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error en importaci\u00f3n: {e}")
+        logger.error("Error en importacion: %s", sanitize_log(type(e).__name__, 80))
         raise HTTPException(status_code=500, detail=f"Error al importar datos: {str(e)}")
 
 

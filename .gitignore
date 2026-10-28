@@ -21,3 +21,4 @@ Thumbs.db
 
 # Generated installers (Windows + Linux)
 dist/
+frontend/node_modules/

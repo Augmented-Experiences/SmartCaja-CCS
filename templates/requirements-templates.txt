@@ -1,0 +1,9 @@
+# Plantillas Pinokio / Gepeto. NO las instala el sidecar ni el instalador.
+# El codigo entregado (server/, app/, requirements.txt, requirements-desktop.txt)
+# no importa gradio, transformers ni accelerate.
+# Copia de referencia de .cursor/skills/gepeto/references/templates/2/requirements.txt
+transformers
+accelerate
+diffusers
+gradio
+devicetorch

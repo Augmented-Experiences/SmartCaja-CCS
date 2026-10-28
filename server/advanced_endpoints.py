@@ -12,12 +12,15 @@ Incluye:
 """
 
 import json
+import re
 import uuid
 import threading
 import time
 import copy
 from datetime import datetime, date
 from pathlib import Path
+from log_sanitize import sanitize_log
+from path_guard import guarded_child
 from typing import Optional, Dict, Any, List
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks
@@ -175,7 +178,7 @@ async def generate_cashflow_v2(company_id: str, request: GenerateCashflowV2Reque
     - Simulación Monte Carlo (si run_monte_carlo=True)
     - Métricas financieras avanzadas
     """
-    company_dir = _DATA_DIR / "companies" / company_id
+    company_dir = guarded_child(_DATA_DIR / "companies", company_id, id_only=True)
     if not company_dir.exists():
         raise HTTPException(404, "Empresa no encontrada")
 
@@ -206,7 +209,7 @@ def _generate_cashflow_v2_task(company_id: str, task_id: str, num_months: int,
                                 mc_iterations: int):
     """Tarea de fondo para generación avanzada de cashflow."""
     try:
-        company_dir = _DATA_DIR / "companies" / company_id
+        company_dir = guarded_child(_DATA_DIR / "companies", company_id, id_only=True)
         company = _load_json(company_dir / "company.json")
 
         # --- Fase 1: Recopilar datos de la entrevista ---
@@ -470,7 +473,7 @@ async def get_advanced_progress(task_id: str):
 @router.get("/companies/{company_id}/metrics")
 async def get_financial_metrics(company_id: str):
     """Calcula y retorna métricas financieras avanzadas del cashflow actual."""
-    company_dir = _DATA_DIR / "companies" / company_id
+    company_dir = guarded_child(_DATA_DIR / "companies", company_id, id_only=True)
     cashflow_path = company_dir / "cashflow.json"
     if not cashflow_path.exists():
         raise HTTPException(404, "No hay flujo de caja. Genera uno primero.")
@@ -498,7 +501,7 @@ async def get_financial_metrics(company_id: str):
 async def run_monte_carlo(company_id: str, request: MonteCarloRequest,
                           background_tasks: BackgroundTasks):
     """Ejecuta simulación Monte Carlo sobre el cashflow existente."""
-    company_dir = _DATA_DIR / "companies" / company_id
+    company_dir = guarded_child(_DATA_DIR / "companies", company_id, id_only=True)
     cashflow_path = company_dir / "cashflow.json"
     if not cashflow_path.exists():
         raise HTTPException(404, "No hay flujo de caja. Genera uno primero.")
@@ -520,7 +523,7 @@ async def run_monte_carlo(company_id: str, request: MonteCarloRequest,
 def _run_monte_carlo_task(company_id: str, task_id: str, iterations: int, variability: dict = None):
     """Tarea de fondo para Monte Carlo."""
     try:
-        company_dir = _DATA_DIR / "companies" / company_id
+        company_dir = guarded_child(_DATA_DIR / "companies", company_id, id_only=True)
         cashflow_data = _load_json(company_dir / "cashflow.json")
 
         model = CashflowModel.from_dict(cashflow_data)
@@ -560,7 +563,7 @@ def _run_monte_carlo_task(company_id: str, task_id: str, iterations: int, variab
 @router.post("/companies/{company_id}/sensitivity")
 async def run_sensitivity(company_id: str, request: SensitivityRequest):
     """Ejecuta análisis de sensibilidad para una variable específica."""
-    company_dir = _DATA_DIR / "companies" / company_id
+    company_dir = guarded_child(_DATA_DIR / "companies", company_id, id_only=True)
     cashflow_path = company_dir / "cashflow.json"
     if not cashflow_path.exists():
         raise HTTPException(404, "No hay flujo de caja.")
@@ -584,7 +587,7 @@ async def run_sensitivity(company_id: str, request: SensitivityRequest):
 @router.post("/companies/{company_id}/market-research")
 async def do_market_research(company_id: str):
     """Busca datos de mercado para el sector de la empresa."""
-    company_dir = _DATA_DIR / "companies" / company_id
+    company_dir = guarded_child(_DATA_DIR / "companies", company_id, id_only=True)
     if not company_dir.exists():
         raise HTTPException(404, "Empresa no encontrada")
 
@@ -612,7 +615,7 @@ async def do_market_research(company_id: str):
 @router.post("/companies/{company_id}/compare-scenarios")
 async def compare_scenarios(company_id: str, request: ScenarioCompareRequest):
     """Compara múltiples escenarios con el cashflow base."""
-    company_dir = _DATA_DIR / "companies" / company_id
+    company_dir = guarded_child(_DATA_DIR / "companies", company_id, id_only=True)
     cashflow_path = company_dir / "cashflow.json"
 
     comparison = {"base": None, "scenarios": [], "comparison_metrics": {}}
@@ -660,7 +663,7 @@ async def compare_scenarios(company_id: str, request: ScenarioCompareRequest):
 @router.post("/companies/{company_id}/custom-scenario")
 async def create_custom_scenario(company_id: str, request: CustomScenarioRequest):
     """Crea un escenario personalizado usando multiplicadores directos."""
-    company_dir = _DATA_DIR / "companies" / company_id
+    company_dir = guarded_child(_DATA_DIR / "companies", company_id, id_only=True)
     cashflow_path = company_dir / "cashflow.json"
     if not cashflow_path.exists():
         raise HTTPException(404, "No hay flujo de caja base.")
@@ -716,7 +719,7 @@ async def chat_interview_v2(company_id: str, message: str, session_id: str = "")
     - Extracción automática de datos
     - Progreso de la entrevista
     """
-    company_dir = _DATA_DIR / "companies" / company_id
+    company_dir = guarded_child(_DATA_DIR / "companies", company_id, id_only=True)
     if not company_dir.exists():
         raise HTTPException(404, "Empresa no encontrada")
 
@@ -741,7 +744,9 @@ async def chat_interview_v2(company_id: str, message: str, session_id: str = "")
     # Cargar o crear sesión
     if not session_id:
         session_id = str(uuid.uuid4())[:8]
-    session_path = sessions_dir / f"{company_id}_{session_id}.json"
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", session_id or ""):
+        raise HTTPException(400, "ID de sesion invalido.")
+    session_path = guarded_child(sessions_dir, f"{company_id}_{session_id}.json")
     session = _load_json(session_path, {
         "id": session_id,
         "company_id": company_id,
@@ -789,7 +794,7 @@ async def chat_interview_v2(company_id: str, message: str, session_id: str = "")
 @router.get("/companies/{company_id}/interview-progress")
 async def get_interview_progress(company_id: str):
     """Retorna el progreso de la entrevista y datos recopilados."""
-    company_dir = _DATA_DIR / "companies" / company_id
+    company_dir = guarded_child(_DATA_DIR / "companies", company_id, id_only=True)
     if not company_dir.exists():
         raise HTTPException(404, "Empresa no encontrada")
 
@@ -822,7 +827,7 @@ async def get_interview_progress(company_id: str):
 @router.get("/companies/{company_id}/cashflow-versions")
 async def list_cashflow_versions(company_id: str):
     """Lista todas las versiones guardadas del cashflow."""
-    company_dir = _DATA_DIR / "companies" / company_id
+    company_dir = guarded_child(_DATA_DIR / "companies", company_id, id_only=True)
     versions_dir = company_dir / "versions"
     versions_dir.mkdir(parents=True, exist_ok=True)
 
@@ -858,7 +863,7 @@ async def list_cashflow_versions(company_id: str):
 @router.post("/companies/{company_id}/cashflow-versions")
 async def save_cashflow_version(company_id: str, name: str = ""):
     """Guarda la versión actual del cashflow como una versión nombrada."""
-    company_dir = _DATA_DIR / "companies" / company_id
+    company_dir = guarded_child(_DATA_DIR / "companies", company_id, id_only=True)
     cashflow_path = company_dir / "cashflow.json"
     if not cashflow_path.exists():
         raise HTTPException(404, "No hay flujo de caja para versionar.")
@@ -880,7 +885,7 @@ async def save_cashflow_version(company_id: str, name: str = ""):
 @router.put("/companies/{company_id}/cashflow-versions/{version_id}/restore")
 async def restore_cashflow_version(company_id: str, version_id: str):
     """Restaura una versión guardada como la versión actual."""
-    company_dir = _DATA_DIR / "companies" / company_id
+    company_dir = guarded_child(_DATA_DIR / "companies", company_id, id_only=True)
     versions_dir = company_dir / "versions"
     version_path = versions_dir / f"{version_id}.json"
 
@@ -917,6 +922,7 @@ def _update_status(task_id: str, progress: int, step: str, phase: str):
 
 def _add_notification(task_id: str, message: str):
     """Agrega una notificación al estado de la tarea (thread-safe)."""
+    message = sanitize_log(message, limit=400)
     with _advanced_gen_lock:
         if task_id in _advanced_generation_status:
             _advanced_generation_status[task_id]["notifications"].append({

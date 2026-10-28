@@ -13,6 +13,7 @@ Funcionalidades:
 import json
 import os
 import logging
+from log_sanitize import sanitize_log
 import time
 import re
 from pathlib import Path
@@ -85,7 +86,7 @@ def search_market_data(sector: str, country: str, data_dir: Path,
     # Intentar cargar del cache (válido por 48 horas)
     cached = _load_cache(cache_dir, cache_key, max_age_hours=48)
     if cached:
-        logger.info(f"Datos de mercado cargados del cache para {sector}/{country}")
+        logger.info("Datos de mercado cargados del cache para %s/%s", sanitize_log(sector, 40), sanitize_log(country, 40))
         return cached
 
     result = {
@@ -107,7 +108,7 @@ def search_market_data(sector: str, country: str, data_dir: Path,
             result.update(market_info)
             result["search_successful"] = True
     except Exception as e:
-        logger.warning(f"Error en búsqueda de mercado: {e}")
+        logger.warning("Error en busqueda de mercado: %s", sanitize_log(type(e).__name__, 80))
 
     # Si no se pudo buscar en internet, usar datos predefinidos
     if not result["search_successful"]:
@@ -159,7 +160,7 @@ def _search_web_for_market(sector: str, country: str, products: List[str] = None
 
             time.sleep(0.5)  # Rate limiting cortés
         except Exception as e:
-            logger.debug(f"Error buscando '{query}': {e}")
+            logger.debug("Error buscando consulta de %s caracteres: %s", len(query or ""), sanitize_log(type(e).__name__, 80))
             continue
 
     if search_results:

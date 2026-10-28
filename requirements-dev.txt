@@ -1,0 +1,3 @@
+# Entorno local de pruebas. No lo usa PyInstaller ni el instalador.
+-r requirements.txt
+pytest>=8.0,<9
