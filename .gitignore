@@ -15,6 +15,10 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Skill local de Pinokio. No es parte del release y su requirements.txt
+# hace que un SCA resuelva gradio y, con eso, pillow.
+.cursor/skills/gepeto/
+
 # Exports
 *.xlsx
 *.csv

@@ -9,9 +9,9 @@ La app es de escritorio, un usuario, backend en loopback. Este documento disting
 | Item | Antes | Despues |
 |---|---|---|
 | DOMPurify | 3.4.1 vendido en `app/lib/purify.min.js`, sin manifiesto npm de la UI | 3.4.17 fijado en `frontend/package.json` y `frontend/package-lock.json`. El archivo entregado es `app/lib/purify.min.js` (cabecera `DOMPurify 3.4.17`). |
-| gradio | No esta en `requirements.txt` ni en `requirements-desktop.txt`. Solo en `.cursor/skills/gepeto/references/templates/2/requirements.txt` y `import gradio` en la plantilla `templates/2/app.py`. | Sigue fuera del instalador. Manifiesto separado: `templates/requirements-templates.txt`. Las plantillas de `.cursor/` no se borraron. |
-| transformers | Igual que gradio: no hay import en `server/`. | Fuera del instalador. Misma lista de plantillas. No se aplica `trust_remote_code` porque no hay carga de modelo en el producto. |
-| accelerate | Igual que gradio. | Fuera del instalador. Misma lista de plantillas. |
+| gradio | No esta en `requirements.txt` ni en `requirements-desktop.txt`. Solo en `.cursor/skills/gepeto/references/templates/2/requirements.txt` y `import gradio` en la plantilla `templates/2/app.py`. | Fuera del instalador. El 30 de octubre esos archivos y `templates/requirements-templates.txt` se eliminaron de la rama. |
+| transformers | Igual que gradio: no hay import en `server/`. | Fuera del instalador y, desde el 30 de octubre, fuera del repositorio. No hay carga de modelo en el producto. |
+| accelerate | Igual que gradio. | Fuera del instalador y, desde el 30 de octubre, fuera del repositorio. |
 
 `pip freeze` del venv del instalador no lista gradio, transformers ni accelerate. Ver seccion 5.
 
@@ -87,7 +87,9 @@ Lista (antes = despues):
 | `tests/test_security_remediation.py` | Log forging, path traversal y Host ajeno. |
 | `SECURITY_REMEDIATION_2026-10.md` | Este informe. |
 
-No se borro `.cursor/` ni las plantillas.
+No se borro `.cursor/` ni las plantillas en esa pasada del 14 de octubre.
+
+El 30 de octubre se eliminaron de la rama `.cursor/skills/gepeto/` y `templates/requirements-templates.txt`. Esos archivos no entran al instalador y eran el unico sitio del repositorio con `gradio`, `transformers`, `accelerate` y `diffusers`. Pillow no estaba declarado: el SCA lo resolvia como dependencia de Gradio. El skill de Gepeto sigue disponible fuera de este repo, en el equipo. `requirements-dev.txt` (pytest) se mantiene porque las pruebas lo usan; no va en el instalador.
 
 ## 4. Tests ejecutados
 
